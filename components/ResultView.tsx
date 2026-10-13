@@ -14,12 +14,17 @@ import {
   Sparkles,
   BookmarkCheck,
   BookmarkPlus,
+  Sliders,
+  Crop,
+  Globe2,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { GeminiListingResult } from "@/types";
+import { PhotoStudioModal } from "./PhotoStudioModal";
 
 interface ResultViewProps {
   result: GeminiListingResult;
+  thumbnailUrl?: string;
   onReset: () => void;
   onSaveToInventory?: (result: GeminiListingResult, chosenPrice: number) => void;
   isSavedToInventory?: boolean;
@@ -27,6 +32,7 @@ interface ResultViewProps {
 
 export function ResultView({
   result,
+  thumbnailUrl,
   onReset,
   onSaveToInventory,
   isSavedToInventory = false,
@@ -36,6 +42,10 @@ export function ResultView({
   const [selectedPriceForSave, setSelectedPriceForSave] = useState<number>(
     result.precos.preco_justo.valor
   );
+
+  // Photo Studio State
+  const [isStudioOpen, setIsStudioOpen] = useState(false);
+  const [currentThumb, setCurrentThumb] = useState<string | undefined>(thumbnailUrl);
 
   // Build the complete listing description that goes straight into Vinted
   const fullListingText = `${result.descricao_pt.trim()}
@@ -103,9 +113,9 @@ ${result.hashtags.join(" ")}`;
 
   return (
     <div className="space-y-4 pb-12">
-      {/* Top Banner with Brand and Category */}
-      <div className="bg-gradient-to-r from-vinted-900/60 via-dark-card to-dark-surface border border-vinted-500/30 rounded-2xl p-3.5 shadow-md">
-        <div className="flex items-center justify-between text-xs mb-1.5">
+      {/* Top Banner with Brand, Category and Photo Studio Trigger */}
+      <div className="bg-gradient-to-r from-vinted-900/60 via-dark-card to-dark-surface border border-vinted-500/35 rounded-2xl p-3.5 shadow-md space-y-2">
+        <div className="flex items-center justify-between text-xs">
           <span className="text-vinted-400 font-semibold flex items-center gap-1">
             <Sparkles className="w-3.5 h-3.5" />
             Anúncio Otimizado c/ Sucesso
@@ -116,6 +126,7 @@ ${result.hashtags.join(" ")}`;
             </span>
           )}
         </div>
+
         <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
           <FolderTree className="w-3.5 h-3.5 text-vinted-400 shrink-0" />
           <span className="text-dark-muted">Categoria sugerida:</span>
@@ -123,6 +134,39 @@ ${result.hashtags.join(" ")}`;
             {result.categoria_sugerida}
           </span>
         </div>
+
+        {/* PHOTO STUDIO TRIGGER CARD */}
+        {currentThumb && (
+          <div className="pt-2 border-t border-dark-border/60 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={currentThumb}
+                alt="Foto"
+                className="w-12 h-12 rounded-xl object-cover border border-vinted-500/40 shrink-0 cursor-pointer"
+                onClick={() => setIsStudioOpen(true)}
+              />
+              <div className="min-w-0">
+                <span className="text-xs font-bold text-white block truncate">
+                  Foto de Capa
+                </span>
+                <span className="text-[10px] text-vinted-400 font-medium flex items-center gap-1">
+                  <Crop className="w-3 h-3" />
+                  Formato 4:5 & Luz de Estúdio
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsStudioOpen(true)}
+              className="py-1.5 px-3 rounded-xl bg-vinted-500/20 hover:bg-vinted-500/30 border border-vinted-500/50 text-vinted-300 text-[11px] font-bold flex items-center gap-1.5 shrink-0 transition-all active:scale-95 shadow-teal-glow"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>Modo Estúdio</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 3 PREÇOS SUGERIDOS EM CARTÕES DESTACADOS NO TOPO */}
@@ -285,15 +329,16 @@ ${result.hashtags.join(" ")}`;
         </button>
       </div>
 
-      {/* CAIXA 2: DESCRIÇÃO COMPLETA COM BOTÃO DE COPIAR COM 1 TOQUE */}
+      {/* CAIXA 2: DESCRIÇÃO COMPLETA (INCLUI MEDIDAS + BLOCO MULTILINGUE PT/FR/ES) */}
       <div className="bg-dark-card border border-dark-border rounded-2xl p-3.5 space-y-2.5 relative shadow-sm">
         <div className="flex items-center justify-between">
           <div>
             <label className="text-xs font-semibold uppercase tracking-wider text-dark-muted flex items-center gap-1.5">
-              Descrição Completa (PT + ES + FR + Tags)
+              <Globe2 className="w-3.5 h-3.5 text-vinted-400" />
+              Descrição Completa (PT + FR + ES + Medidas)
             </label>
             <p className="text-[10px] text-vinted-400 mt-0.5">
-              Pronta com tradução para compradores de Espanha e França
+              Inclui bloco multilingue para atrair compradores de França e Espanha
             </p>
           </div>
         </div>
@@ -383,6 +428,18 @@ ${result.hashtags.join(" ")}`;
           <span>Novo Artigo</span>
         </button>
       </div>
+
+      {/* PHOTO STUDIO MODAL */}
+      {currentThumb && (
+        <PhotoStudioModal
+          isOpen={isStudioOpen}
+          onClose={() => setIsStudioOpen(false)}
+          imageUrl={currentThumb}
+          onSaveModifiedImage={(newUrl) => {
+            setCurrentThumb(newUrl);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ export interface PriceOption {
 }
 
 export interface ClothingDetails {
-  fit?: string; // 'Oversized' | 'Boxy Fit' | 'Regular' | 'Slim Fit'
+  fit?: string; // 'Oversized' | 'Boxy Fit' | 'Regular' | 'Slim'
   widthPitToPit?: string; // cm
   lengthCm?: string; // cm
 }
@@ -16,10 +16,16 @@ export interface TechDetails {
   accessoriesIncluded: boolean;
 }
 
+export interface FootwearDetails {
+  sizeEu?: string; // ex: '42'
+  authenticatedOriginal: boolean;
+}
+
 export interface AntiHaggleData {
   targetNetPrice?: number;
   suggestedListPrice?: number;
 }
+
 
 export interface GeminiListingResult {
   titulo_pt: string;

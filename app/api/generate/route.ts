@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
       customModel,
       clothingDetails,
       techDetails,
+      footwearDetails,
       antiHaggle,
     } = body;
 
@@ -110,6 +111,18 @@ export async function POST(req: NextRequest) {
         if (widthPitToPit) promptText += `- Largura Axila a Axila: ${widthPitToPit} cm\n`;
         if (lengthCm) promptText += `- Comprimento: ${lengthCm} cm\n`;
         promptText += `IMPORTANTE: Inclui obrigatoriamente estas medidas formatadas na secção de tamanho/medidas da descricao_pt e resume-as em espanhol (sisa a sisa/largo) e francês (aisselle à aisselle/longueur) na traducao_es_fr.\n`;
+      }
+    }
+
+    // Specific footwear & accessories details
+    if (footwearDetails) {
+      promptText += `\n[CALÇADO & ACESSÓRIOS]:\n`;
+      if (footwearDetails.sizeEu) {
+        promptText += `- Tamanho de Calçado: EU ${footwearDetails.sizeEu}\n`;
+        promptText += `IMPORTANTE: Inclui obrigatoriamente este tamanho EU no título_pt e na secção de tamanho da descricao_pt.\n`;
+      }
+      if (footwearDetails.authenticatedOriginal) {
+        promptText += `- Artigo 100% Original e Autenticado\n`;
       }
     }
 

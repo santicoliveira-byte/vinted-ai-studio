@@ -19,6 +19,7 @@ import {
   InventoryItem,
   ClothingDetails,
   TechDetails,
+  FootwearDetails,
 } from "@/types";
 import { Sparkles, Loader2, AlertCircle, ShieldAlert, KeyRound } from "lucide-react";
 import confetti from "canvas-confetti";
@@ -28,18 +29,22 @@ export default function Home() {
 
   // Input states
   const [images, setImages] = useState<ProcessedImage[]>([]);
-  const [category, setCategory] = useState<string>("Streetwear & Roupa");
+  const [category, setCategory] = useState<string>("Roupa / Streetwear");
   const [quickNotes, setQuickNotes] = useState<string>("");
 
   // Feature 1: Dynamic Category Fields
   const [clothingDetails, setClothingDetails] = useState<ClothingDetails>({
-    fit: "Regular Fit",
+    fit: "Regular",
   });
   const [techDetails, setTechDetails] = useState<TechDetails>({
     testedAndWorking: true,
     pristineCondition: true,
     bubbleWrapPackaging: true,
     accessoriesIncluded: false,
+  });
+  const [footwearDetails, setFootwearDetails] = useState<FootwearDetails>({
+    sizeEu: "42",
+    authenticatedOriginal: true,
   });
 
   // Feature 2: Anti-Haggle Calculator
@@ -156,12 +161,16 @@ export default function Home() {
   const handleReset = () => {
     setImages([]);
     setQuickNotes("");
-    setClothingDetails({ fit: "Regular Fit" });
+    setClothingDetails({ fit: "Regular" });
     setTechDetails({
       testedAndWorking: true,
       pristineCondition: true,
       bubbleWrapPackaging: true,
       accessoriesIncluded: false,
+    });
+    setFootwearDetails({
+      sizeEu: "42",
+      authenticatedOriginal: true,
     });
     setTargetNetPrice(undefined);
     setSuggestedListPrice(undefined);
@@ -191,6 +200,7 @@ export default function Home() {
         quickNotes,
         clothingDetails,
         techDetails,
+        footwearDetails,
         antiHaggle: {
           targetNetPrice,
           suggestedListPrice,
@@ -306,7 +316,7 @@ export default function Home() {
               }}
             />
 
-            {/* Step 2: Category & Dynamic Fields (Fit/Medidas ou Garantias Tech) */}
+            {/* Step 2: Category & Dynamic Fields (Fit/Medidas, Gaming ou Calçado) */}
             <CategorySelector
               selectedCategory={category}
               onSelectCategory={setCategory}
@@ -314,6 +324,8 @@ export default function Home() {
               onClothingDetailsChange={setClothingDetails}
               techDetails={techDetails}
               onTechDetailsChange={setTechDetails}
+              footwearDetails={footwearDetails}
+              onFootwearDetailsChange={setFootwearDetails}
             />
 
             {/* Step 3: Anti-Haggle Calculator */}
@@ -381,6 +393,7 @@ export default function Home() {
           <div className="animate-in fade-in duration-150">
             <ResultView
               result={currentResult}
+              thumbnailUrl={currentThumbnail || images[0]?.previewUrl}
               onReset={handleReset}
               onSaveToInventory={handleSaveToInventory}
               isSavedToInventory={true}
