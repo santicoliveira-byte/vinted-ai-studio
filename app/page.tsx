@@ -5,6 +5,7 @@ import { Header } from "@/components/Header";
 import { Navigation, NavTab } from "@/components/Navigation";
 import { ImageUploader } from "@/components/ImageUploader";
 import { CategorySelector } from "@/components/CategorySelector";
+import { AntiHaggleCalculator } from "@/components/AntiHaggleCalculator";
 import { QuickNotes } from "@/components/QuickNotes";
 import { ResultView } from "@/components/ResultView";
 import { SettingsView } from "@/components/SettingsView";
@@ -16,6 +17,8 @@ import {
   GeminiListingResult,
   SavedListingItem,
   InventoryItem,
+  ClothingDetails,
+  TechDetails,
 } from "@/types";
 import { Sparkles, Loader2, AlertCircle, ShieldAlert, KeyRound } from "lucide-react";
 import confetti from "canvas-confetti";
@@ -27,6 +30,21 @@ export default function Home() {
   const [images, setImages] = useState<ProcessedImage[]>([]);
   const [category, setCategory] = useState<string>("Streetwear & Roupa");
   const [quickNotes, setQuickNotes] = useState<string>("");
+
+  // Feature 1: Dynamic Category Fields
+  const [clothingDetails, setClothingDetails] = useState<ClothingDetails>({
+    fit: "Regular Fit",
+  });
+  const [techDetails, setTechDetails] = useState<TechDetails>({
+    testedAndWorking: true,
+    pristineCondition: true,
+    bubbleWrapPackaging: true,
+    accessoriesIncluded: false,
+  });
+
+  // Feature 2: Anti-Haggle Calculator
+  const [targetNetPrice, setTargetNetPrice] = useState<number | undefined>(undefined);
+  const [suggestedListPrice, setSuggestedListPrice] = useState<number | undefined>(undefined);
 
   // API & Settings state
   const [apiKey, setApiKey] = useState<string>("");
@@ -138,6 +156,15 @@ export default function Home() {
   const handleReset = () => {
     setImages([]);
     setQuickNotes("");
+    setClothingDetails({ fit: "Regular Fit" });
+    setTechDetails({
+      testedAndWorking: true,
+      pristineCondition: true,
+      bubbleWrapPackaging: true,
+      accessoriesIncluded: false,
+    });
+    setTargetNetPrice(undefined);
+    setSuggestedListPrice(undefined);
     setCurrentResult(null);
     setCurrentThumbnail(undefined);
     setActiveTab("create");
@@ -162,6 +189,12 @@ export default function Home() {
         })),
         category,
         quickNotes,
+        clothingDetails,
+        techDetails,
+        antiHaggle: {
+          targetNetPrice,
+          suggestedListPrice,
+        },
         customApiKey: apiKey,
         customModel: selectedModel,
       };
@@ -191,7 +224,8 @@ export default function Home() {
         titulo: generatedData.titulo_pt,
         category,
         status: "active",
-        precoListado: generatedData.precos.preco_justo.valor,
+        precoListado:
+          suggestedListPrice || generatedData.precos.preco_justo.valor,
         thumbnail: images[0]?.previewUrl,
         result: generatedData,
       };
@@ -262,7 +296,7 @@ export default function Home() {
 
         {/* TAB 1: CREATE VIEW */}
         {activeTab === "create" && (
-          <div className="space-y-5 animate-in fade-in duration-150">
+          <div className="space-y-4 animate-in fade-in duration-150">
             {/* Step 1: Photos */}
             <ImageUploader
               images={images}
@@ -272,13 +306,24 @@ export default function Home() {
               }}
             />
 
-            {/* Step 2: Category */}
+            {/* Step 2: Category & Dynamic Fields (Fit/Medidas ou Garantias Tech) */}
             <CategorySelector
               selectedCategory={category}
               onSelectCategory={setCategory}
+              clothingDetails={clothingDetails}
+              onClothingDetailsChange={setClothingDetails}
+              techDetails={techDetails}
+              onTechDetailsChange={setTechDetails}
             />
 
-            {/* Step 3: Quick Notes */}
+            {/* Step 3: Anti-Haggle Calculator */}
+            <AntiHaggleCalculator
+              targetNetPrice={targetNetPrice}
+              onTargetNetPriceChange={setTargetNetPrice}
+              onSuggestedListPriceChange={setSuggestedListPrice}
+            />
+
+            {/* Step 4: Quick Notes */}
             <QuickNotes notes={quickNotes} onNotesChange={setQuickNotes} />
 
             {/* Warning if no key configured */}
@@ -299,7 +344,7 @@ export default function Home() {
             )}
 
             {/* Primary Action Button: "Gerar Anúncio Pro" */}
-            <div className="pt-2">
+            <div className="pt-1">
               <button
                 type="button"
                 disabled={isGenerating || images.length === 0}
@@ -325,7 +370,7 @@ export default function Home() {
                 )}
               </button>
               <p className="text-center text-[10px] text-dark-muted mt-2">
-                Gera título SEO, 3 preços em €, descrição em PT e traduções ES/FR
+                Gera título SEO, 3 preços em €, medidas/garantias e traduções ES/FR
               </p>
             </div>
           </div>

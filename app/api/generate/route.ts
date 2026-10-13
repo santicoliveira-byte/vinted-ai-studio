@@ -56,7 +56,16 @@ REGRAS CRÍTICAS:
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { images, category, quickNotes, customApiKey, customModel } = body;
+    const {
+      images,
+      category,
+      quickNotes,
+      customApiKey,
+      customModel,
+      clothingDetails,
+      techDetails,
+      antiHaggle,
+    } = body;
 
     // Determine API Key: custom key from client localStorage or server environment variable
     const apiKey =
@@ -91,10 +100,49 @@ export async function POST(req: NextRequest) {
     if (category) {
       promptText += `Categoria selecionada pelo vendedor: ${category}\n`;
     }
-    if (quickNotes) {
-      promptText += `Notas adicionais do vendedor: ${quickNotes}\n`;
+
+    // Specific clothing measurements
+    if (clothingDetails) {
+      const { fit, widthPitToPit, lengthCm } = clothingDetails;
+      if (fit || widthPitToPit || lengthCm) {
+        promptText += `\n[INFORMAÇÕES DE MEDIDAS DE ROUPA]:\n`;
+        if (fit) promptText += `- Corte / Fit: ${fit}\n`;
+        if (widthPitToPit) promptText += `- Largura Axila a Axila: ${widthPitToPit} cm\n`;
+        if (lengthCm) promptText += `- Comprimento: ${lengthCm} cm\n`;
+        promptText += `IMPORTANTE: Inclui obrigatoriamente estas medidas formatadas na secção de tamanho/medidas da descricao_pt e resume-as em espanhol (sisa a sisa/largo) e francês (aisselle à aisselle/longueur) na traducao_es_fr.\n`;
+      }
     }
-    promptText += `Gera o anúncio completo com preços e traduções seguindo estritamente as instruções e o formato JSON.`;
+
+    // Specific tech & gaming guarantees
+    if (techDetails) {
+      promptText += `\n[GARANTIAS DE HARDWARE / GAMING]:\n`;
+      if (techDetails.testedAndWorking) {
+        promptText += `- 100% testado e totalmente funcional sem qualquer defeito\n`;
+      }
+      if (techDetails.pristineCondition) {
+        promptText += `- Caixa, disco ou artigo em estado impecável\n`;
+      }
+      if (techDetails.bubbleWrapPackaging) {
+        promptText += `- Envio super protegido em plástico bolha e embalagem reforçada\n`;
+      }
+      if (techDetails.accessoriesIncluded) {
+        promptText += `- Cabos, comandos ou acessórios originais incluídos\n`;
+      }
+      promptText += `IMPORTANTE: Destaca com grande ênfase estas garantias na descricao_pt e nas traduções espanhola e francesa para dar 100% de confiança ao comprador.\n`;
+    }
+
+    // Anti-haggle pricing anchor
+    if (antiHaggle?.targetNetPrice) {
+      promptText += `\n[PREÇO ANTI-REGATEIO]:\n`;
+      promptText += `- O vendedor pretende receber no mínimo ${antiHaggle.targetNetPrice}€ limpos.\n`;
+      promptText += `- Preço de publicação ideal sugerido para absorver ofertas de -15% a -20%: em torno de ${antiHaggle.suggestedListPrice || Math.ceil(antiHaggle.targetNetPrice / 0.8)}€.\n`;
+      promptText += `IMPORTANTE: Ajusta as tuas 3 sugestões de preço para que o 'preco_justo' e o 'com_margem' fiquem alinhados com este objetivo.\n`;
+    }
+
+    if (quickNotes) {
+      promptText += `\nNotas adicionais do vendedor: ${quickNotes}\n`;
+    }
+    promptText += `\nGera o anúncio completo com preços e traduções seguindo estritamente as instruções e o formato JSON.`;
 
     contentsParts.push({ text: promptText });
 

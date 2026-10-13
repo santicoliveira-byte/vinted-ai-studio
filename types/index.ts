@@ -3,6 +3,24 @@ export interface PriceOption {
   descricao: string;
 }
 
+export interface ClothingDetails {
+  fit?: string; // 'Oversized' | 'Boxy Fit' | 'Regular' | 'Slim Fit'
+  widthPitToPit?: string; // cm
+  lengthCm?: string; // cm
+}
+
+export interface TechDetails {
+  testedAndWorking: boolean;
+  pristineCondition: boolean;
+  bubbleWrapPackaging: boolean;
+  accessoriesIncluded: boolean;
+}
+
+export interface AntiHaggleData {
+  targetNetPrice?: number;
+  suggestedListPrice?: number;
+}
+
 export interface GeminiListingResult {
   titulo_pt: string;
   descricao_pt: string;
@@ -59,3 +77,4 @@ export interface AppSettings {
   vintedCountry: string; // 'pt', 'es', 'fr'
   autoCopyTitle: boolean;
 }
+
