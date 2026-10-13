@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   MessageSquare,
   Copy,
@@ -8,15 +8,18 @@ import {
   Zap,
   PackageCheck,
   Star,
-  Send,
   Sparkles,
   Bot,
   Loader2,
   DollarSign,
-  Languages,
   CheckCircle2,
   ShieldCheck,
-  ArrowRight,
+  XCircle,
+  Languages,
+  Clock,
+  HeartHandshake,
+  SendHorizontal,
+  Info,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 
@@ -25,45 +28,55 @@ interface ChatNegotiatorViewProps {
   selectedModel?: string;
 }
 
-type TabMode = "quick_reply" | "counter_offer" | "shipped_locker" | "request_review";
-type TargetLang = "fr" | "es" | "it" | "pt";
-type ActionIntent = "accept" | "counter" | "explain" | "shipping";
+export type BuyerLang = "fr" | "es" | "it" | "en" | "pt";
+export type ResponseIntent =
+  | "accept"
+  | "counter"
+  | "guarantee_10_10"
+  | "decline_politely";
+
+export type TemplateLang = "pt" | "fr" | "es";
 
 interface LangOption {
-  id: TargetLang;
+  id: BuyerLang;
   flag: string;
   label: string;
+  country: string;
 }
 
-const LANGUAGES: LangOption[] = [
-  { id: "fr", flag: "🇫🇷", label: "Francês" },
-  { id: "es", flag: "🇪🇸", label: "Espanhol" },
-  { id: "it", flag: "🇮🇹", label: "Italiano" },
-  { id: "pt", flag: "🇵🇹", label: "Português" },
+const BUYER_LANGUAGES: LangOption[] = [
+  { id: "fr", flag: "🇫🇷", label: "Francês", country: "França / Bélgica" },
+  { id: "es", flag: "🇪🇸", label: "Espanhol", country: "Espanha" },
+  { id: "it", flag: "🇮🇹", label: "Italiano", country: "Itália" },
+  { id: "en", flag: "🇬🇧", label: "Inglês", country: "Internacional" },
+  { id: "pt", flag: "🇵🇹", label: "Português", country: "Portugal" },
 ];
 
 export function ChatNegotiatorView({
   apiKey,
   selectedModel = "gemini-2.5-flash",
 }: ChatNegotiatorViewProps) {
-  const [activeTab, setActiveTab] = useState<TabMode>("quick_reply");
+  // ==========================================
+  // FERRAMENTA 1: TRADUTOR & GERADOR IA (TOPO)
+  // ==========================================
+  const [buyerMessage, setBuyerMessage] = useState<string>("");
+  const [selectedLang, setSelectedLang] = useState<BuyerLang>("fr");
+  const [manualLangOverride, setManualLangOverride] = useState<boolean>(false);
+  const [actionIntent, setActionIntent] = useState<ResponseIntent>("counter");
+  const [counterPriceInput, setCounterPriceInput] = useState<string>("20");
+  const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
+  const [aiCustomResponse, setAiCustomResponse] = useState<string | null>(null);
+  const [aiTranslationPt, setAiTranslationPt] = useState<string | null>(null);
+
+  // ==========================================
+  // FERRAMENTA 2: TEMPLATES RÁPIDOS (EM BAIXO)
+  // ==========================================
+  const [templateLang, setTemplateLang] = useState<TemplateLang>("pt");
+
+  // Feedback de cópia
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // FEATURE: TRADUTOR & ASSISTENTE DE NEGOCIAÇÃO
-  const [buyerMessage, setBuyerMessage] = useState<string>("");
-  const [selectedLang, setSelectedLang] = useState<TargetLang>("fr");
-  const [actionIntent, setActionIntent] = useState<ActionIntent>("counter");
-  const [counterPriceInput, setCounterPriceInput] = useState<string>("20");
-  const [conditionDetail, setConditionDetail] = useState<string>(
-    "impecavel_fotos"
-  );
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [aiCustomResponse, setAiCustomResponse] = useState<string | null>(null);
-
-  // SCENARIO 2: AVISAR ENVIO CACIFO
-  const [courier, setCourier] = useState<string>("InPost / Cacifo Locker");
-
-  // Copy helper with confetti
+  // Helper de cópia com confetti
   const copyToClipboard = async (text: string, key: string) => {
     try {
       if (navigator.clipboard) {
@@ -72,7 +85,7 @@ export function ChatNegotiatorView({
       setCopiedKey(key);
       try {
         confetti({
-          particleCount: 30,
+          particleCount: 36,
           spread: 60,
           origin: { y: 0.8 },
           colors: ["#007782", "#00a8b5", "#10b981", "#ffffff"],
@@ -88,73 +101,203 @@ export function ChatNegotiatorView({
     }
   };
 
-  // Auto-detect language if user pastes common phrases
+  // Deteção inteligente de idioma a partir do texto
+  const detectLanguage = (text: string): BuyerLang => {
+    const lower = text.toLowerCase().trim();
+    if (!lower) return "fr";
+
+    const frCues = [
+      "bonjour", "salut", "svp", "merci", "prix", "dernier", "combien", "pouvez",
+      "faire", "dispo", "disponible", "envoi", "frais", "relais", "colis", "possible",
+      "taille", "photo", "baisse", "offre", "cdlt", "cordialement", "acheter", "bonsoir"
+    ];
+    const esCues = [
+      "hola", "buenas", "cuanto", "precio", "rebaja", "dejas", "haces", "envio",
+      "disponible", "gracias", "ultimo", "negociable", "talla", "fotos", "oferta",
+      "acepta", "quedaria", "correos", "punto", "comprar"
+    ];
+    const itCues = [
+      "ciao", "buongiorno", "buonasera", "quanto", "prezzo", "sconto", "disponibile",
+      "grazie", "spedizione", "accetti", "trattabile", "taglia", "foto", "offerta",
+      "puoi", "fare", "lasci"
+    ];
+    const enCues = [
+      "hello", "hi", "hey", "price", "lowest", "best", "available", "shipping",
+      "offer", "accept", "discount", "condition", "bundle", "size", "thanks", "thank you",
+      "would you", "can you", "still available"
+    ];
+    const ptCues = [
+      "olá", "ola", "boas", "bom dia", "boa tarde", "preço", "preco", "mínimo",
+      "minimo", "faz", "fazes", "envio", "disponível", "disponivel", "obrigado",
+      "aceita", "proposta", "consegues"
+    ];
+
+    let frScore = 0, esScore = 0, itScore = 0, enScore = 0, ptScore = 0;
+
+    for (const w of frCues) if (lower.includes(w)) frScore += 2;
+    for (const w of esCues) if (lower.includes(w)) esScore += 2;
+    for (const w of itCues) if (lower.includes(w)) itScore += 2;
+    for (const w of enCues) if (lower.includes(w)) enScore += 2;
+    for (const w of ptCues) if (lower.includes(w)) ptScore += 2;
+
+    if (/[éèêàçù]/.test(lower)) frScore += 1;
+    if (/[¿¡ñ]/.test(lower)) esScore += 3;
+    if (/(\bè\b|\bha\b|\bsono\b|\bper\b)/.test(lower)) itScore += 2;
+    if (/(\bthe\b|\bis\b|\bfor\b|\byou\b|\bit\b)/.test(lower)) enScore += 2;
+    if (/[ãõáéíóú]/.test(lower)) ptScore += 1;
+
+    const scores = [
+      { lang: "fr" as const, score: frScore },
+      { lang: "es" as const, score: esScore },
+      { lang: "it" as const, score: itScore },
+      { lang: "en" as const, score: enScore },
+      { lang: "pt" as const, score: ptScore },
+    ];
+
+    scores.sort((a, b) => b.score - a.score);
+    return scores[0].score > 0 ? scores[0].lang : "fr";
+  };
+
+  // Atualização da mensagem com auto-deteção se o utilizador não tiver forçado manualmente
   const handleBuyerMessageChange = (text: string) => {
     setBuyerMessage(text);
     setAiCustomResponse(null);
-    const lower = text.toLowerCase();
-    if (
-      lower.includes("bonjour") ||
-      lower.includes("svp") ||
-      lower.includes("merci") ||
-      lower.includes("prix") ||
-      lower.includes("combien") ||
-      lower.includes("dispo")
-    ) {
-      setSelectedLang("fr");
-    } else if (
-      lower.includes("hola") ||
-      lower.includes("buenas") ||
-      lower.includes("rebaja") ||
-      lower.includes("envio") ||
-      lower.includes("precio") ||
-      lower.includes("cuanto")
-    ) {
-      setSelectedLang("es");
-    } else if (
-      lower.includes("ciao") ||
-      lower.includes("buongiorno") ||
-      lower.includes("prezzo") ||
-      lower.includes("sconto") ||
-      lower.includes("disponibile")
-    ) {
-      setSelectedLang("it");
-    } else if (
-      lower.includes("olá") ||
-      lower.includes("boa tarde") ||
-      lower.includes("mínimo") ||
-      lower.includes("aceita")
-    ) {
-      setSelectedLang("pt");
+    setAiTranslationPt(null);
+
+    if (!manualLangOverride && text.trim().length >= 3) {
+      const autoLang = detectLanguage(text);
+      setSelectedLang(autoLang);
     }
   };
 
-  // Generate dynamic response based on Intent and Target Language
-  const generateDynamicReply = (lang: TargetLang, intent: ActionIntent): { reply: string; translationPt: string } => {
+  // Tradução imediata com heurísticas do mercado Vinted
+  const instantTranslation = useMemo(() => {
+    if (aiTranslationPt) return aiTranslationPt;
+    const trimmed = buyerMessage.trim();
+    if (!trimmed) {
+      return "Cola uma mensagem acima para ver a tradução instantânea em Português.";
+    }
+
+    const lower = trimmed.toLowerCase();
+    const priceMatch = trimmed.match(/(\d+(?:[.,]\d+)?)\s*(?:€|eur|euros|\$)?/i);
+    const foundPrice = priceMatch ? priceMatch[1] : null;
+
+    const isAskingPrice =
+      lower.includes("dernier prix") ||
+      lower.includes("último precio") ||
+      lower.includes("ultimo prezzo") ||
+      lower.includes("best price") ||
+      lower.includes("lowest") ||
+      lower.includes("mínimo") ||
+      lower.includes("minimo") ||
+      lower.includes("combien") ||
+      lower.includes("cuanto");
+
+    const isAskingAvail =
+      lower.includes("dispo") ||
+      lower.includes("disponible") ||
+      lower.includes("available");
+
+    const isAskingShipping =
+      lower.includes("envoi") ||
+      lower.includes("envio") ||
+      lower.includes("spedizione") ||
+      lower.includes("shipping") ||
+      lower.includes("relais") ||
+      lower.includes("inpost");
+
+    const isAskingCondition =
+      lower.includes("état") ||
+      lower.includes("etat") ||
+      lower.includes("estado") ||
+      lower.includes("condizioni") ||
+      lower.includes("condition") ||
+      lower.includes("défaut") ||
+      lower.includes("defecto") ||
+      lower.includes("difetti") ||
+      lower.includes("flaw");
+
+    if (
+      foundPrice &&
+      (lower.includes("faire") ||
+        lower.includes("dejas") ||
+        lower.includes("lasci") ||
+        lower.includes("take") ||
+        lower.includes("aceita") ||
+        lower.includes("svp") ||
+        lower.includes("€") ||
+        lower.includes("eur") ||
+        lower.includes("prix"))
+    ) {
+      return `💰 Proposta de Preço: O comprador está a oferecer ou a perguntar se aceitas fechar por ${foundPrice}€.`;
+    }
+
+    if (isAskingPrice) {
+      return "🏷️ Negociação: O comprador quer saber qual é o teu preço mínimo / último preço para fechar.";
+    }
+
+    if (isAskingAvail) {
+      return "✅ Disponibilidade: O comprador está a perguntar se o artigo ainda está disponível para envio.";
+    }
+
+    if (isAskingShipping) {
+      return "📦 Envio / Prazos: O comprador está a perguntar sobre os portes, transportadora (InPost / Mondial Relay / CTT) ou data de envio.";
+    }
+
+    if (isAskingCondition) {
+      return "🔍 Estado do Artigo: O comprador quer confirmar o estado 10/10, eventuais marcas de uso ou defeitos.";
+    }
+
+    // Heurística por idioma
+    switch (selectedLang) {
+      case "fr":
+        return `🇫🇷 Mensagem em Francês: "${trimmed}". O comprador está em contacto para negociar ou esclarecer dúvidas.`;
+      case "es":
+        return `🇪🇸 Mensagem em Espanhol: "${trimmed}". O comprador em Espanha enviou esta mensagem sobre o artigo.`;
+      case "it":
+        return `🇮🇹 Mensagem em Italiano: "${trimmed}". O comprador em Itália enviou esta dúvida.`;
+      case "en":
+        return `🇬🇧 Mensagem em Inglês: "${trimmed}". O comprador enviou esta questão sobre o artigo.`;
+      case "pt":
+      default:
+        return `🇵🇹 Mensagem em Português: "${trimmed}".`;
+    }
+  }, [buyerMessage, selectedLang, aiTranslationPt]);
+
+  // Templates inteligentes multilingues de resposta (Fallback robusto e instantâneo)
+  const getSmartReply = (
+    lang: BuyerLang,
+    intent: ResponseIntent
+  ): { reply: string; translationPt: string } => {
     const price = counterPriceInput || "20";
 
     if (intent === "accept") {
       switch (lang) {
         case "fr":
           return {
-            reply: `Bonjour ! J'accepte votre offre avec grand plaisir. Vous pouvez finaliser la commande dans l'application Vinted et je vous prépare le colis très soigneusement pour un envoi sous 24h ! Merci beaucoup 😊📦`,
-            translationPt: `Aceito a tua oferta com todo o gosto. Podes avançar com a compra na app e trato do envio super bem protegido em 24h! Muito obrigado 😊📦`,
+            reply: `Bonjour ! J'accepte votre offre avec grand plaisir 😊 Vous pouvez finaliser la commande directement dans l'application Vinted. Je vous prépare le colis avec le plus grand soin et je vous l'expédie sous 24h ! Merci beaucoup et très bonne journée ! 📦✨`,
+            translationPt: `Aceito a tua oferta com muito gosto! Podes avançar com a compra na app. Trato de preparar o pacote com todo o carinho e envio nas próximas 24 horas! Muito obrigado!`,
           };
         case "es":
           return {
-            reply: `¡Hola! Acepto tu oferta con mucho gusto. Puedes proceder con la compra en la app de Vinted y me encargo de prepararte el paquete súper bien protegido en las próximas 24 horas. ¡Muchas gracias! 😊📦`,
-            translationPt: `Aceito a tua oferta com muito gosto. Podes avançar com a compra na app da Vinted e trato de te preparar o pacote super bem protegido nas próximas 24 horas. Muito obrigado! 😊📦`,
+            reply: `¡Hola! Acepto tu oferta con mucho gusto 😊 Puedes proceder con la compra directamente en la app de Vinted. Te preparo el paquete súper bien protegido y te lo envío en menos de 24 horas. ¡Muchísimas gracias! 📦✨`,
+            translationPt: `Aceito a tua oferta com muito gosto! Podes concluir a compra na app. Preparo o pacote super bem protegido e envio em 24h. Muito obrigado!`,
           };
         case "it":
           return {
-            reply: `Ciao! Accetto la tua offerta con molto piacere. Puoi procedere con l'acquisto nell'app e ti preparo il pacco super protetto per la spedizione entro le prossime 24 ore. Grazie mille! 😊📦`,
-            translationPt: `Aceito a tua oferta com muito prazer. Podes proceder à compra e preparo o pacote super protegido para envio em 24h. Obrigado! 😊📦`,
+            reply: `Ciao! Accetto la tua offerta con grande piacere 😊 Puoi procedere all'acquisto direttamente qui su Vinted. Ti preparo il pacco con estrema cura e lo spedisco entro 24 ore! Grazie mille! 📦✨`,
+            translationPt: `Aceito a tua oferta com muito prazer! Podes avançar para a compra na app. Preparo o pacote com extremo cuidado e envio em 24h. Muito obrigado!`,
+          };
+        case "en":
+          return {
+            reply: `Hi! I'm happy to accept your offer 😊 Please feel free to complete the purchase through the Vinted app. I will pack it very carefully and ship it out within 24 hours! Thank you very much! 📦✨`,
+            translationPt: `Aceito a tua oferta com muito gosto! Podes avançar com a compra na app. Embalo com muito cuidado e envio em 24h. Obrigado!`,
           };
         case "pt":
         default:
           return {
-            reply: `Olá! Aceito a tua oferta com todo o gosto. Podes avançar com a compra aqui na app que trato de embalar o artigo com todo o cuidado e envio em 24h! Muito obrigado 😊📦`,
-            translationPt: `Versão direta em Português`,
+            reply: `Olá! Aceito a tua oferta com todo o gosto 😊 Podes avançar com a compra aqui na aplicação. Vou embalar o artigo com todo o carinho e proteção e envio nas próximas 24h! Muito obrigado! 📦✨`,
+            translationPt: `Aceito a tua oferta com todo o gosto! Podes avançar com a compra na app. Embalo com proteção e envio em 24h!`,
           };
       }
     }
@@ -163,135 +306,136 @@ export function ChatNegotiatorView({
       switch (lang) {
         case "fr":
           return {
-            reply: `Bonjour ! Merci beaucoup pour votre intérêt. Votre offre est malheureusement un peu trop basse par rapport à la valeur et à l'état de l'article. Mon dernier prix pour valider la vente aujourd'hui est de ${price}€. Si cela vous convient, envoyez-moi l'offre dans l'application et je vous expédie le colis dès demain ! Bonne journée 😊📦`,
-            translationPt: `Agradeço o interesse mas a oferta fica baixa. O meu preço mínimo para fechar hoje é ${price}€. Se concordares, envia a oferta e envio amanhã!`,
+            reply: `Bonjour ! Merci beaucoup pour votre intérêt. Votre proposition est malheureusement un peu trop basse par rapport à la valeur et à l'état de l'article. Mon dernier prix pour valider la vente aujourd'hui est de ${price}€. Si cela vous convient, envoyez-moi l'offre dans l'application et je vous prépare le colis dès aujourd'hui ! Bonne journée 😊📦`,
+            translationPt: `Obrigado pelo interesse. A proposta é um pouco baixa para o estado do artigo. O meu mínimo para fechar hoje é ${price}€. Se concordares, envia a proposta e preparo o pacote hoje!`,
           };
         case "es":
           return {
-            reply: `¡Hola! Muchas gracias por tu interés y por tu oferta. Lamentablemente queda demasiado baja para el estado del artículo. Mi precio mínimo definitivo para cerrar el trato hoy es de ${price}€. Si te parece bien, haz la contraoferta en la app y te lo envío mañana mismo bien protegido. ¡Un saludo! 😊📦`,
-            translationPt: `Agradeço o interesse, mas fica muito baixa para o estado do artigo. O meu mínimo para fechar hoje é ${price}€. Se te parecer bem, envia a oferta e envio amanhã!`,
+            reply: `¡Hola! Muchas gracias por tu interés y por tu oferta. Lamentablemente queda demasiado baja para el estado del artículo. Mi precio mínimo definitivo para cerrar el trato hoy es de ${price}€. Si te parece bien, hazme la contraoferta en la app y te lo envío mañana mismo bien protegido. ¡Un saludo! 😊📦`,
+            translationPt: `Obrigado pelo interesse. Fica muito abaixo para o estado do artigo. O meu mínimo para fechar hoje é ${price}€. Se te servir, envia a contraoferta na app e envio amanhã!`,
           };
         case "it":
           return {
-            reply: `Ciao! Grazie mille per l'interesse. Purtroppo l'offerta è un po' troppo bassa per le condizioni dell'articolo. Il mio prezzo minimo per concludere oggi è di ${price}€. Se per te va bene, invia l'offerta nell'app e spedirò il pacco domani mattina! Buona giornata 😊📦`,
-            translationPt: `Obrigado pelo interesse. A oferta é muito baixa. O meu preço mínimo para fechar hoje é ${price}€. Se te convier, envia a oferta e envio amanhã!`,
+            reply: `Ciao! Grazie mille per l'interesse. Purtroppo l'offerta è un po' troppo bassa per le condizioni dell'articolo. Il mio prezzo minimo per concludere oggi è di ${price}€. Se per te va bene, fai pure l'offerta nell'app e spedirò il pacco domattina! Buona giornata 😊📦`,
+            translationPt: `Obrigado pelo interesse. A oferta é baixa para o estado do artigo. O meu preço mínimo é ${price}€. Se concordares, faz a oferta e envio amanhã!`,
+          };
+        case "en":
+          return {
+            reply: `Hi! Thanks so much for your interest and offer. Unfortunately, that's a bit too low considering the great condition of the item. The best price I can do to close the deal today is ${price}€. If that works for you, please send the offer through the app and I'll ship it out tomorrow! Best regards 😊📦`,
+            translationPt: `Obrigado pelo interesse. É um pouco baixo para o ótimo estado do artigo. O melhor que consigo fazer hoje é ${price}€. Se concordares, envia a oferta e envio amanhã!`,
           };
         case "pt":
         default:
           return {
-            reply: `Olá! Muito obrigado pelo interesse. Infelizmente esse valor fica muito abaixo do valor do artigo. O preço mínimo absoluto que consigo fazer para fecharmos já negócio é ${price}€. Se aceitares, envia a proposta pela app e trato do envio logo a seguir! 😊📦`,
-            translationPt: `Versão direta em Português`,
+            reply: `Olá! Muito obrigado pelo interesse. Infelizmente esse valor fica um pouco abaixo para o excelente estado do artigo. O meu preço mínimo definitivo para fechar hoje é ${price}€. Se concordares, envia a contraproposta pela app e trato do envio logo a seguir! 😊📦`,
+            translationPt: `Obrigado pelo interesse. Fica abaixo para o estado do artigo. O meu mínimo é ${price}€. Se concordares, envia a proposta e trato do envio!`,
           };
       }
     }
 
-    if (intent === "explain") {
+    if (intent === "guarantee_10_10") {
       switch (lang) {
         case "fr":
           return {
-            reply: `Bonjour ! L'article est exactement dans l'état décrit et visible sur les photos : 100% authentique, impeccable et sans aucun défaut. Les mesures précises sont également indiquées dans l'annonce. Il est soigneusement rangé et prêt à être envoyé. N'hésitez pas si vous avez d'autres questions ! ✨`,
-            translationPt: `O artigo está exatamente no estado descrito e nas fotos: 100% autêntico, impecável e sem defeitos. Medidas indicadas no anúncio. Pronto para envio!`,
+            reply: `Bonjour ! Je vous confirme que l'article est dans un état 10/10 impeccable, exactement comme sur les photos, sans aucun défaut ni trace d'usure. Il est déjà soigneusement rangé et prêt à partir. Si vous commandez maintenant, je le dépose au point relais aujourd'hui même ! ⚡📦✨`,
+            translationPt: `Confirmo que o artigo está 10/10 impecável, exatamente como nas fotos, sem defeitos. Já está embalado e se comprares agora deposito no ponto de recolha hoje mesmo! ⚡`,
           };
         case "es":
           return {
-            reply: `¡Hola! El artículo está exactamente en el estado descrito y visible en las fotos: 100% auténtico, impecable y sin ningún defecto ni marca. Las medidas exactas también están detalladas en el anuncio. Está guardado y listo para enviar. ¡Cualquier duda aquí estoy! ✨`,
-            translationPt: `O artigo está exatamente conforme descrito e nas fotos: 100% autêntico, impecável e sem defeitos. Medidas no anúncio. Pronto a enviar!`,
+            reply: `¡Hola! Te confirmo que el artículo está en estado 10/10 impecable, exactamente tal como se ve en las fotos, sin defectos ni marcas de uso. Ya lo tengo perfectamente preparado y protegido. ¡Si compras ahora, te lo deposito en el punto de entrega hoy mismo! ⚡📦✨`,
+            translationPt: `Confirmo que o artigo está 10/10 impecável, tal como nas fotos, sem marcas de uso. Está preparado e se comprares agora deposito no ponto de entrega hoje mesmo! ⚡`,
           };
         case "it":
           return {
-            reply: `Ciao! L'articolo è esattamente nelle condizioni descritte e mostrate nelle foto: 100% autentico, impeccabile e senza difetti. Le misure esatte sono specificate nella descrizione. È pronto per essere spedito con cura. A disposizione per qualsiasi domanda! ✨`,
-            translationPt: `O artigo está nas condições descritas e fotos: 100% autêntico, impecável e sem defeitos. Medidas na descrição. Pronto para envio!`,
+            reply: `Ciao! Ti confermo che l'articolo è in condizioni 10/10 impeccabili, esattamente come mostrato nelle foto, privo di difetti o segni. È già imballato e protetto con cura. Se completi l'ordine adesso, lo porto al punto di spedizione oggi stesso! ⚡📦✨`,
+            translationPt: `Confirmo que o artigo está 10/10 impecável, como nas fotos, sem marcas. Já está embalado e se comprares agora levo ao ponto de envio hoje mesmo! ⚡`,
+          };
+        case "en":
+          return {
+            reply: `Hi! I can confirm the item is in pristine 10/10 condition, exactly as shown in the pictures, with zero flaws or defects. It is already securely packed and protected. If you order now, I will drop it off at the parcel locker/drop point today! ⚡📦✨`,
+            translationPt: `Confirmo que o artigo está 10/10 impecável, sem defeitos. Já está bem embalado e se comprares agora deixo no cacifo/ponto de entrega hoje mesmo! ⚡`,
           };
         case "pt":
         default:
           return {
-            reply: `Olá! O artigo está rigorosamente no estado descrito e fotografado no anúncio: 100% autêntico, impecável e sem marcas ou defeitos. As medidas detalhadas também estão na descrição. Está devidamente guardado e pronto para envio! ✨`,
-            translationPt: `Versão direta em Português`,
+            reply: `Olá! Confirmo que o artigo está em estado 10/10 rigorosamente impecável, tal como podes comprovar nas fotos, sem qualquer defeito ou marca. Já o tenho devidamente acondicionado e protegido. Se comprares agora, entrego no cacifo/posto hoje mesmo! ⚡📦✨`,
+            translationPt: `Confirmo que o artigo está 10/10 impecável, sem marcas. Já está embalado e se comprares agora entrego no cacifo/posto hoje mesmo! ⚡`,
           };
       }
     }
 
-    // Shipping intent
+    // decline_politely
     switch (lang) {
       case "fr":
         return {
-          reply: `Bonjour ! Oui, je vous confirme que je prépare et dépose le colis sous 24h (le jour même ou le lendemain ouvré). Il sera emballé de façon ultra soignée et protégée. Vous recevrez immédiatement la notification de suivi dès le dépôt ! 📦⚡`,
-          translationPt: `Sim, confirmo que preparo e envio o pacote em 24h (no próprio dia ou no dia útil seguinte) super bem protegido. Receberás logo o rastreio!`,
+          reply: `Bonjour ! Merci beaucoup pour votre offre et votre intérêt. Malheureusement, ce montant est trop éloigné de la valeur réelle de l'article, je ne peux donc pas l'accepter. Le prix affiché est déjà très juste pour son état. Je vous souhaite une excellente journée et de bonnes recherches sur Vinted ! 😊👋`,
+          translationPt: `Muito obrigado pela proposta e interesse. Infelizmente esse valor fica muito longe do valor real, não posso aceitar. O preço anunciado já é muito justo. Boas compras!`,
         };
       case "es":
         return {
-          reply: `¡Hola! Sí, te confirmo que preparo y deposito el paquete en menos de 24 horas (el mismo día o el siguiente laborable). Irá súper bien embalado y protegido. ¡Recibirás el código de seguimiento de inmediato! 📦⚡`,
-          translationPt: `Sim, confirmo que envio o pacote em menos de 24h muito bem embalado e protegido. Receberás logo o código de seguimento!`,
+          reply: `¡Hola! Muchas gracias por tu interés y por enviar la oferta. Lamentablemente queda demasiado lejos del valor real del artículo, por lo que no puedo aceptarla. El precio publicado ya está muy ajustado a su excelente estado. ¡Muchas gracias y que tengas un buen día! 😊👋`,
+          translationPt: `Muito obrigado pelo interesse e pela oferta. Infelizmente fica muito abaixo do valor real, não posso aceitar. O preço já está ajustado. Tenha um bom dia!`,
         };
       case "it":
         return {
-          reply: `Ciao! Sì, ti confermo che preparo e spedisco il pacco entro 24 ore (in giornata o il giorno lavorativo successivo). Sarà imballato con estrema cura. Riceverai subito il codice di tracciamento! 📦⚡`,
-          translationPt: `Sim, confirmo que preparo e envio em 24h embalado com extremo cuidado. Receberás logo o código de rastreamento!`,
+          reply: `Ciao! Grazie mille per l'interesse e per la proposta. Purtroppo la cifra è troppo distante dal valore effettivo dell'articolo, quindi non posso accettarla. Il prezzo attuale è già molto corretto per le sue condizioni. Ti auguro una buona giornata e buoni acquisti su Vinted! 😊👋`,
+          translationPt: `Obrigado pelo interesse e proposta. O valor fica muito distante do valor real, não posso aceitar. O preço atual já é correto. Boas compras!`,
+        };
+      case "en":
+        return {
+          reply: `Hi! Thank you very much for your interest and for the offer. Unfortunately, that amount is too far below the actual value of the item, so I won't be able to accept it. The current price is already very fair for its condition. Wishing you a great day and happy shopping on Vinted! 😊👋`,
+          translationPt: `Muito obrigado pelo interesse e oferta. Infelizmente o valor fica muito abaixo do valor real, pelo que não consigo aceitar. O preço atual já é justo. Boas compras!`,
         };
       case "pt":
       default:
         return {
-          reply: `Olá! Sim, confirmo que preparo e envio a encomenda nas próximas 24 horas (no próprio dia ou dia útil seguinte), super bem embalada e protegida. Assim que der entrada no ponto recebes logo a notificação de rastreio! 📦⚡`,
-          translationPt: `Versão direta em Português`,
+          reply: `Olá! Muito obrigado pelo interesse e pela proposta. Infelizmente esse valor fica bastante distante do valor real do artigo, pelo que não consigo aceitar. O preço atual já se encontra bastante ajustado ao excelente estado do mesmo. Desejo-te um ótimo dia e boas compras na Vinted! 😊👋`,
+          translationPt: `Muito obrigado pelo interesse. Infelizmente o valor fica distante do valor real, pelo que não consigo aceitar. O preço atual já está justo. Boas compras!`,
         };
     }
   };
 
-  const dynamicResult = generateDynamicReply(selectedLang, actionIntent);
-  const currentOutputText = aiCustomResponse || dynamicResult.reply;
+  const smartFallback = getSmartReply(selectedLang, actionIntent);
+  const activeOutputText = aiCustomResponse || smartFallback.reply;
+  const activeTranslationPt = aiTranslationPt || smartFallback.translationPt;
 
-  // AI Assistant Custom Generator
+  // Chamada à API para gerar resposta personalizada com IA (Gemini)
   const handleGenerateAiResponse = async () => {
     if (!buyerMessage.trim()) return;
     setIsAiLoading(true);
-    setAiCustomResponse(null);
 
     try {
-      const intentNames: Record<ActionIntent, string> = {
-        accept: "Aceitar a oferta com simpatia e confirmar envio em 24h.",
-        counter: `Recusar educadamente a oferta baixa e propor contraproposta firme de ${counterPriceInput || "20"}€ com envio rápido em 24h.`,
-        explain: "Explicar que o artigo está exatamente conforme fotos e descrição, 100% autêntico e impecável.",
-        shipping: "Garantir que o envio é feito nas próximas 24h com embalagem reforçada.",
-      };
-
-      const langMap: Record<TargetLang, string> = {
-        fr: "Francês (França/Bélgica)",
-        es: "Espanhol (Espanha)",
-        it: "Italiano (Itália)",
-        pt: "Português",
-      };
-
-      const prompt = `És o melhor negociador de vendas na Vinted.
-O comprador enviou esta mensagem:
-"${buyerMessage}"
-
-A língua alvo do comprador é: ${langMap[selectedLang]}.
-O vendedor quer responder com a seguinte intenção: ${intentNames[actionIntent]}.
-
-Instrução: Gera uma resposta persuasiva, impecável e cordial na língua alvo (${langMap[selectedLang]}), pronta a colar no chat da Vinted com emojis simpáticos e apropriados. Devolve APENAS o texto da mensagem a enviar (sem comentários ou aspas adicionais).`;
-
-      const finalKey = apiKey?.trim() || "";
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${finalKey}`;
-
-      const res = await fetch(url, {
+      const res = await fetch("/api/negotiate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
+          buyerMessage: buyerMessage.trim(),
+          intent: actionIntent,
+          counterPrice: counterPriceInput || "20",
+          targetLanguage: selectedLang,
+          customApiKey: apiKey,
+          customModel: selectedModel,
         }),
       });
 
       if (!res.ok) {
-        throw new Error("Falha na chamada à IA. Verifica a tua chave API nas Definições.");
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || "Erro na geração com IA");
       }
 
       const data = await res.json();
-      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-      if (rawText) {
-        setAiCustomResponse(rawText);
+      if (data.response_text) {
+        setAiCustomResponse(data.response_text);
+        if (data.buyer_translation_pt) {
+          setAiTranslationPt(data.buyer_translation_pt);
+        }
+        if (data.detected_language && !manualLangOverride) {
+          setSelectedLang(data.detected_language as BuyerLang);
+        }
+
         try {
           confetti({
-            particleCount: 30,
+            particleCount: 35,
             spread: 50,
             origin: { y: 0.7 },
             colors: ["#007782", "#00a8b5", "#10b981"],
@@ -301,489 +445,616 @@ Instrução: Gera uma resposta persuasiva, impecável e cordial na língua alvo 
         }
       }
     } catch (err: any) {
-      alert(err.message || "Erro ao gerar resposta com IA.");
+      console.warn("Fallback para templates inteligentes:", err);
+      // Mantém a resposta dos templates sem quebrar o fluxo do utilizador
     } finally {
       setIsAiLoading(false);
     }
   };
 
-  // Scenario Texts for Cacifo and Review
-  const shippedTexts: Record<TargetLang, string> = {
-    pt: `Olá! A tua encomenda já foi depositada com sucesso no ${courier}. O pacote vai muito bem protegido e acondicionado. Já deves conseguir acompanhar o estado do envio aqui no rastreio da Vinted. Muito obrigado pela compra! 📦✨`,
-    es: `¡Hola! Tu paquete ya ha sido depositado correctamente en el ${courier}. Va súper bien embalado y protegido. Ya puedes comprobar el estado del envío directamente en el seguimiento de la app de Vinted. ¡Muchas gracias por la compra! 📦✨`,
-    fr: `Bonjour ! Votre colis a bien été déposé au point ${courier}. Il est soigneusement emballé et bien protégé. Le suivi de livraison est désormais actif directement dans l'application Vinted. Merci beaucoup pour votre achat ! 📦✨`,
-    it: `Ciao! Il tuo pacco è stato depositato con successo presso ${courier}. È imballato con estrema cura e protetto. Puoi già verificare lo stato della spedizione direttamente nell'app Vinted. Grazie mille per l'acquisto! 📦✨`,
+  // ==========================================
+  // CONTEÚDOS DOS TEMPLATES RÁPIDOS (FERRAMENTA 2)
+  // ==========================================
+  const quickTemplates: Record<
+    TemplateLang,
+    {
+      shipped: { title: string; text: string; ptExpl: string };
+      thankYou: { title: string; text: string; ptExpl: string };
+      review: { title: string; text: string; ptExpl: string };
+    }
+  > = {
+    pt: {
+      shipped: {
+        title: "Já enviei no ponto de recolha / cacifo InPost / CTT!",
+        text: `Olá! Já enviei a tua encomenda no ponto de recolha / cacifo InPost / CTT! O pacote foi super bem embalado e protegido. Já deves conseguir acompanhar o estado do envio diretamente aqui no rastreio da Vinted. Muito obrigado pela compra! 📦⚡`,
+        ptExpl: "Mensagem direta em Português confirmando o depósito seguro.",
+      },
+      thankYou: {
+        title: "Obrigado pela compra! Preparei tudo com plástico bolha e envio nas próximas 24h.",
+        text: `Olá! Muito obrigado pela tua compra! Já preparei tudo com plástico bolha e embalagem reforçada. Envio nas próximas 24h para te chegar o mais depressa possível! 📦✨`,
+        ptExpl: "Agradecimento imediato pós-compra e garantia de envio em 24h.",
+      },
+      review: {
+        title: "Vi que a encomenda já chegou! Se estiver tudo impecável, podes confirmar na app e deixar feedback 5⭐?",
+        text: `Olá! Vi que a encomenda já chegou! Se estiver tudo impecável, podes confirmar a receção na app e deixar um feedback de 5⭐? Ajuda imenso o meu perfil de vendedor. Muito obrigado e boas compras! ⭐⭐⭐⭐⭐`,
+        ptExpl: "Pedido simpático de confirmação e avaliação de 5 estrelas.",
+      },
+    },
+    fr: {
+      shipped: {
+        title: "Já enviei no ponto de recolha / cacifo InPost / CTT!",
+        text: `Bonjour ! Votre colis a bien été déposé au point relais / casier InPost ! Il a été emballé avec le plus grand soin et très bien protégé. Vous pouvez d'ores et déjà suivre l'acheminement directement dans l'application Vinted. Merci beaucoup pour votre commande ! 📦⚡`,
+        ptExpl: "Confirmação em Francês de que o pacote foi entregue no cacifo/relais com cuidado.",
+      },
+      thankYou: {
+        title: "Obrigado pela compra! Preparei tudo com plástico bolha e envio nas próximas 24h.",
+        text: `Bonjour ! Merci beaucoup pour votre achat ! J'ai soigneusement préparé l'article avec du papier bulle et un emballage renforcé. Je vous l'expédie sous 24h pour une réception rapide ! 📦✨`,
+        ptExpl: "Agradecimento em Francês com garantia de plástico bolha e saída em 24h.",
+      },
+      review: {
+        title: "Vi que a encomenda já chegou! Se estiver tudo impecável, podes confirmar na app e deixar feedback 5⭐?",
+        text: `Bonjour ! J'ai vu que votre commande a bien été livrée ! Si tout est impeccable, pourriez-vous valider la réception sur Vinted et me laisser une évaluation 5⭐ ? Cela m'aide énormément. Merci infiniment et très bonne journée ! ⭐⭐⭐⭐⭐`,
+        ptExpl: "Pedido cordial em Francês para validar a entrega e atribuir 5 estrelas.",
+      },
+    },
+    es: {
+      shipped: {
+        title: "Já enviei no ponto de recolha / cacifo InPost / CTT!",
+        text: `¡Hola! Tu paquete ya ha sido depositado correctamente en el punto de recogida / taquilla InPost / Correos. Va súper bien embalado y protegido. Ya puedes comprobar el estado del envío directamente en el seguimiento de Vinted. ¡Muchas gracias por la compra! 📦⚡`,
+        ptExpl: "Confirmação em Espanhol de que o pacote já está depositado e protegido.",
+      },
+      thankYou: {
+        title: "Obrigado pela compra! Preparei tudo com plástico bolha e envio nas próximas 24h.",
+        text: `¡Hola! ¡Muchísimas gracias por tu compra! Ya he preparado el paquete con plástico de burbujas y embalaje reforzado. Te lo envío en las próximas 24 horas para que te llegue lo antes posible. 📦✨`,
+        ptExpl: "Agradecimento em Espanhol com reforço de plástico bolha e envio em 24h.",
+      },
+      review: {
+        title: "Vi que a encomenda já chegou! Se estiver tudo impecável, podes confirmar na app e deixar feedback 5⭐?",
+        text: `¡Hola! He visto que el paquete ya ha sido entregado con éxito. Si todo está impecable, ¿podrías confirmar la recepción en la app y dejarme una valoración de 5⭐? ¡Ayuda muchísimo a mi perfil de vendedor! ¡Muchas gracias! ⭐⭐⭐⭐⭐`,
+        ptExpl: "Pedido educado em Espanhol para fechar a compra e dar 5 estrelas.",
+      },
+    },
   };
 
-  const reviewTexts: Record<TargetLang, string> = {
-    pt: `Olá! Vi que a tua encomenda já foi entregue com sucesso. Espero que tenhas gostado muito do artigo e que corresponda às tuas expectativas! Se correu tudo bem, agradecer-te-ia imenso se pudesses deixar uma avaliação de 5 estrelas aqui na Vinted. Ajuda imenso o meu perfil! Muito obrigado e boas compras! ⭐⭐⭐⭐⭐`,
-    es: `¡Hola! He visto que tu paquete ya ha sido entregado con éxito. ¡Espero que te encante el artículo y que todo esté perfecto! Si estás satisfecho(a), te agradecería de corazón que me dejes una valoración de 5 estrellas en Vinted. ¡Ayuda muchísimo a mi perfil! ¡Muchas gracias y hasta la próxima! ⭐⭐⭐⭐⭐`,
-    fr: `Bonjour ! J'ai vu que votre commande a bien été livrée. J'espère que l'article vous plaît et correspond parfaitement à vos attentes ! Si tout s'est bien passé, ce serait très gentil de me laisser un avis 5 étoiles sur Vinted. Cela m'aide énormément ! Merci beaucoup et bonne journée ! ⭐⭐⭐⭐⭐`,
-    it: `Ciao! Ho visto che il tuo ordine è stato consegnato con successo. Spero che l'articolo ti piaccia e sia di tuo gradimento! Se è andato tutto bene, ti sarei immensamente grato/a se potessi lasciare una recensione a 5 stelle su Vinted. Aiuta moltissimo il mio profilo! Grazie mille e a presto! ⭐⭐⭐⭐⭐`,
-  };
+  const currentQuick = quickTemplates[templateLang];
 
   return (
-    <div className="space-y-4 pb-12 animate-in fade-in duration-150">
-      {/* Top Banner */}
-      <div className="bg-gradient-to-r from-[#0d2226] via-dark-card to-dark-surface border border-vinted-500/30 rounded-2xl p-3.5">
-        <div className="flex items-center gap-2 mb-1">
-          <MessageSquare className="w-4 h-4 text-vinted-400" />
-          <h2 className="text-xs font-bold text-white uppercase tracking-wider">
-            Assistente de Negociação no Chat
-          </h2>
+    <div className="space-y-6 pb-12 animate-in fade-in duration-150">
+      {/* ============================================================== */}
+      {/* TOPO: INTRO HEADER                                            */}
+      {/* ============================================================== */}
+      <div className="bg-gradient-to-r from-[#0d2226] via-dark-card to-dark-surface border border-vinted-500/30 rounded-2xl p-3.5 shadow-teal-glow/20">
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-vinted-400" />
+            <h2 className="text-xs font-bold text-white uppercase tracking-wider">
+              Negociador & Chat Vinted
+            </h2>
+          </div>
+          <span className="text-[10px] bg-vinted-500/20 text-vinted-300 font-bold px-2 py-0.5 rounded-full border border-vinted-500/40">
+            2-em-1 Pro
+          </span>
         </div>
-        <p className="text-[11px] text-dark-muted leading-tight">
-          Cola a mensagem do comprador em <strong>Francês 🇫🇷</strong>,{" "}
-          <strong>Espanhol 🇪🇸</strong>, <strong>Italiano 🇮🇹</strong> ou{" "}
-          <strong>Português 🇵🇹</strong> e responde com 1 toque.
+        <p className="text-[11px] text-dark-muted leading-relaxed">
+          Traduz mensagens recebidas, gera respostas instantâneas na língua do comprador e copia avisos de envio com 1 toque.
         </p>
       </div>
 
-      {/* Mode Navigation Tabs */}
-      <div className="grid grid-cols-3 gap-1.5 bg-dark-card border border-dark-border p-1 rounded-2xl">
-        <button
-          type="button"
-          onClick={() => setActiveTab("quick_reply")}
-          className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === "quick_reply"
-              ? "bg-vinted-500 text-white shadow-teal-glow"
-              : "text-dark-muted hover:text-white"
-          }`}
-        >
-          <Languages className="w-3.5 h-3.5" />
-          <span>Tradutor Chat</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("shipped_locker")}
-          className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === "shipped_locker"
-              ? "bg-vinted-500 text-white shadow-teal-glow"
-              : "text-dark-muted hover:text-white"
-          }`}
-        >
-          <PackageCheck className="w-3.5 h-3.5" />
-          <span>Avisar Envio</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("request_review")}
-          className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === "request_review"
-              ? "bg-vinted-500 text-white shadow-teal-glow"
-              : "text-dark-muted hover:text-white"
-          }`}
-        >
-          <Star className="w-3.5 h-3.5" />
-          <span>Pedir 5 Estrelas</span>
-        </button>
-      </div>
-
-      {/* TAB 1: TRADUTOR & RESPOSTA RÁPIDA A MENSAGEM */}
-      {activeTab === "quick_reply" && (
-        <div className="space-y-3.5">
-          {/* Card: Paste buyer message */}
-          <div className="bg-dark-card border border-dark-border rounded-2xl p-3.5 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                <span>Mensagem Recebida do Comprador</span>
-              </label>
-              <span className="text-[10px] text-vinted-400 font-semibold">
-                Deteção Automática
-              </span>
+      {/* ============================================================== */}
+      {/* FERRAMENTA 1: TRADUTOR E GERADOR DE RESPOSTA COM IA (NO TOPO)  */}
+      {/* ============================================================== */}
+      <section className="bg-dark-card border border-dark-border rounded-3xl p-4 space-y-4 shadow-xl">
+        {/* Section Header */}
+        <div className="flex items-center justify-between border-b border-dark-border/80 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-xl bg-vinted-500/20 text-vinted-400 flex items-center justify-center border border-vinted-500/40">
+              <Bot className="w-4 h-4" />
             </div>
-
-            <textarea
-              data-selectable="true"
-              value={buyerMessage}
-              onChange={(e) => handleBuyerMessageChange(e.target.value)}
-              placeholder="Cola aqui a mensagem da Vinted (ex: 'Bonjour, vous pouvez faire à 18€?', 'Hola me lo dejas en 15€?', 'Ciao è disponibile?')..."
-              rows={2}
-              className="w-full bg-dark-surface border border-dark-border rounded-xl p-3 text-xs text-white placeholder:text-dark-muted/60 focus:border-vinted-500 focus:outline-none resize-none leading-relaxed"
-            />
-
-            {/* Target Language Selector */}
             <div>
-              <label className="text-[10px] text-dark-muted uppercase font-bold block mb-1.5">
-                Responder em que língua?
-              </label>
-              <div className="grid grid-cols-4 gap-1.5">
-                {LANGUAGES.map((lang) => {
-                  const isSelected = selectedLang === lang.id;
-                  return (
-                    <button
-                      key={lang.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedLang(lang.id);
-                        setAiCustomResponse(null);
-                      }}
-                      className={`py-2 px-1 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 ${
-                        isSelected
-                          ? "bg-vinted-500/20 border-vinted-500 text-white shadow-teal-glow"
-                          : "bg-dark-surface border-dark-border text-slate-300 hover:text-white"
-                      }`}
-                    >
-                      <span className="text-sm">{lang.flag}</span>
-                      <span className="text-[10px] truncate">{lang.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                <span>1. Tradutor & Gerador IA</span>
+                <Sparkles className="w-3 h-3 text-amber-400 animate-pulse" />
+              </h3>
+              <p className="text-[10px] text-dark-muted">
+                Cola a mensagem do comprador em FR, ES, IT, EN ou PT
+              </p>
             </div>
+          </div>
+          <span className="text-[10px] text-vinted-400 font-mono font-bold bg-dark-surface px-2 py-1 rounded-lg border border-dark-border">
+            {BUYER_LANGUAGES.find((l) => l.id === selectedLang)?.flag}{" "}
+            {BUYER_LANGUAGES.find((l) => l.id === selectedLang)?.label}
+          </span>
+        </div>
 
-            {/* Action Intent Selector */}
-            <div>
-              <label className="text-[10px] text-dark-muted uppercase font-bold block mb-1.5">
-                O que queres responder?
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActionIntent("accept");
-                    setAiCustomResponse(null);
-                  }}
-                  className={`p-2.5 rounded-xl border text-left transition-all ${
-                    actionIntent === "accept"
-                      ? "bg-emerald-950/40 border-emerald-500 text-emerald-300 font-bold"
-                      : "bg-dark-surface border-dark-border text-slate-300"
-                  }`}
-                >
-                  <div className="text-xs font-bold flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Aceitar Oferta</span>
-                  </div>
-                  <div className="text-[9px] text-dark-muted mt-0.5">
-                    Concordar e pedir compra
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActionIntent("counter");
-                    setAiCustomResponse(null);
-                  }}
-                  className={`p-2.5 rounded-xl border text-left transition-all ${
-                    actionIntent === "counter"
-                      ? "bg-amber-950/40 border-amber-500 text-amber-300 font-bold"
-                      : "bg-dark-surface border-dark-border text-slate-300"
-                  }`}
-                >
-                  <div className="text-xs font-bold flex items-center gap-1.5">
-                    <DollarSign className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Contraproposta</span>
-                  </div>
-                  <div className="text-[9px] text-dark-muted mt-0.5">
-                    Propor preço mínimo
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActionIntent("explain");
-                    setAiCustomResponse(null);
-                  }}
-                  className={`p-2.5 rounded-xl border text-left transition-all ${
-                    actionIntent === "explain"
-                      ? "bg-vinted-500/20 border-vinted-500 text-vinted-300 font-bold"
-                      : "bg-dark-surface border-dark-border text-slate-300"
-                  }`}
-                >
-                  <div className="text-xs font-bold flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-vinted-400" />
-                    <span>Explicar Estado</span>
-                  </div>
-                  <div className="text-[9px] text-dark-muted mt-0.5">
-                    Confirmar que está impecável
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActionIntent("shipping");
-                    setAiCustomResponse(null);
-                  }}
-                  className={`p-2.5 rounded-xl border text-left transition-all ${
-                    actionIntent === "shipping"
-                      ? "bg-vinted-500/20 border-vinted-500 text-vinted-300 font-bold"
-                      : "bg-dark-surface border-dark-border text-slate-300"
-                  }`}
-                >
-                  <div className="text-xs font-bold flex items-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Envio Rápido</span>
-                  </div>
-                  <div className="text-[9px] text-dark-muted mt-0.5">
-                    Garantir saída em 24h
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            {/* If Counter Offer: Price Input */}
-            {actionIntent === "counter" && (
-              <div className="bg-dark-surface/60 border border-dark-border/80 rounded-xl p-2.5 flex items-center justify-between gap-3 animate-in fade-in">
-                <div>
-                  <span className="text-xs font-bold text-white block">
-                    Valor da Contraproposta:
-                  </span>
-                  <span className="text-[10px] text-dark-muted">
-                    Preço mínimo que aceitas
-                  </span>
-                </div>
-                <div className="relative w-28">
-                  <input
-                    type="number"
-                    value={counterPriceInput}
-                    onChange={(e) => {
-                      setCounterPriceInput(e.target.value);
-                      setAiCustomResponse(null);
-                    }}
-                    className="w-full bg-dark-card border border-amber-500/50 rounded-lg px-3 py-1.5 text-base font-black text-white font-mono focus:outline-none"
-                    placeholder="20"
-                  />
-                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-amber-400">
-                    €
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Optional AI Polish button if buyer message is provided */}
-            {buyerMessage.trim() && (
+        {/* 1.1 Input Caixa de Texto da Mensagem */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+              <span>Mensagem do Comprador</span>
+            </label>
+            {buyerMessage && (
               <button
                 type="button"
-                disabled={isAiLoading}
-                onClick={handleGenerateAiResponse}
-                className="w-full py-2.5 px-3 rounded-xl bg-dark-surface hover:bg-dark-cardHover border border-vinted-500/40 text-vinted-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all active:scale-95"
+                onClick={() => {
+                  setBuyerMessage("");
+                  setAiCustomResponse(null);
+                  setAiTranslationPt(null);
+                }}
+                className="text-[10px] text-dark-muted hover:text-rose-400 transition-colors"
               >
-                {isAiLoading ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-vinted-400" />
-                    <span>A personalizar com Gemini IA...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5 text-vinted-400" />
-                    <span>Personalizar com IA para esta mensagem</span>
-                  </>
-                )}
+                Limpar
               </button>
             )}
           </div>
 
-          {/* GENERATED TRANSLATED RESPONSE CARD */}
-          <div className="bg-dark-card border-2 border-vinted-500/60 rounded-3xl p-4 space-y-3 shadow-teal-glow animate-in fade-in">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white flex items-center gap-2">
-                <span className="text-base">
-                  {LANGUAGES.find((l) => l.id === selectedLang)?.flag}
-                </span>
-                <span>
-                  Resposta Pronta em{" "}
-                  {LANGUAGES.find((l) => l.id === selectedLang)?.label}
-                </span>
-              </span>
-              <span className="text-[10px] text-vinted-300 font-mono">
-                {currentOutputText.length} carateres
-              </span>
-            </div>
+          <textarea
+            data-selectable="true"
+            value={buyerMessage}
+            onChange={(e) => handleBuyerMessageChange(e.target.value)}
+            placeholder="Cola aqui a mensagem da Vinted (ex: 'Bonjour, vous pouvez faire à 18€?', 'Hola me lo dejas en 15€?', 'Ciao è ancora disponibile?')..."
+            rows={3}
+            className="w-full bg-dark-surface border border-dark-border rounded-2xl p-3 text-xs text-white placeholder:text-dark-muted/60 focus:border-vinted-500 focus:outline-none resize-none leading-relaxed shadow-inner"
+          />
 
-            {/* The Text to Send */}
-            <div
-              data-selectable="true"
-              className="bg-dark-surface border border-dark-border/80 rounded-2xl p-3.5 text-xs text-white leading-relaxed select-text font-sans"
-            >
-              {currentOutputText}
+          {/* Quick chip examples if empty */}
+          {!buyerMessage && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              <span className="text-[9px] text-dark-muted py-0.5">Testar:</span>
+              <button
+                type="button"
+                onClick={() => handleBuyerMessageChange("Bonjour, vous pouvez faire à 15€ svp ?")}
+                className="text-[9px] bg-dark-surface hover:bg-dark-surface/80 border border-dark-border text-slate-300 px-2 py-0.5 rounded-lg active:scale-95"
+              >
+                🇫🇷 15€ svp ?
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBuyerMessageChange("Hola, me lo dejas en 18€ y me lo quedo hoy?")}
+                className="text-[9px] bg-dark-surface hover:bg-dark-surface/80 border border-dark-border text-slate-300 px-2 py-0.5 rounded-lg active:scale-95"
+              >
+                🇪🇸 18€ hoy?
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBuyerMessageChange("Ciao, è ancora disponibile? Spedisci subito?")}
+                className="text-[9px] bg-dark-surface hover:bg-dark-surface/80 border border-dark-border text-slate-300 px-2 py-0.5 rounded-lg active:scale-95"
+              >
+                🇮🇹 È disponibile?
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBuyerMessageChange("Hi! Would you accept 20€? What is the condition?")}
+                className="text-[9px] bg-dark-surface hover:bg-dark-surface/80 border border-dark-border text-slate-300 px-2 py-0.5 rounded-lg active:scale-95"
+              >
+                🇬🇧 20€ condition?
+              </button>
             </div>
+          )}
+        </div>
 
-            {/* Meaning in Portuguese for user peace of mind */}
-            <div className="bg-dark-surface/50 border border-dark-border/50 rounded-xl px-3 py-2 text-[10px] text-dark-muted">
-              <strong className="text-slate-300 block mb-0.5">
-                Significado em Português:
-              </strong>
-              {dynamicResult.translationPt}
-            </div>
+        {/* 1.2 Tradução Imediata para Português */}
+        <div className="bg-gradient-to-br from-dark-surface to-dark-surface/70 border border-vinted-500/30 rounded-2xl p-3 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-vinted-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Languages className="w-3.5 h-3.5 text-vinted-400" />
+              <span>Tradução Imediata para Português 🇵🇹</span>
+            </span>
+            <span className="text-[9px] text-dark-muted font-medium">
+              {buyerMessage.trim() ? "Em tempo real" : "Aguardando mensagem"}
+            </span>
+          </div>
+          <p
+            data-selectable="true"
+            className={`text-xs leading-relaxed select-text ${
+              buyerMessage.trim() ? "text-slate-100 font-medium" : "text-dark-muted italic text-[11px]"
+            }`}
+          >
+            {instantTranslation}
+          </p>
+        </div>
 
-            {/* Primary 1-Touch Copy Button */}
+        {/* 1.3 Seletor Rápido de Língua do Comprador */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] text-dark-muted uppercase font-bold">
+              Língua Alvo do Comprador
+            </label>
+            <span className="text-[9px] text-vinted-400">
+              {manualLangOverride ? "Manual" : "Auto-detetado"}
+            </span>
+          </div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {BUYER_LANGUAGES.map((lang) => {
+              const isSelected = selectedLang === lang.id;
+              return (
+                <button
+                  key={lang.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedLang(lang.id);
+                    setManualLangOverride(true);
+                    setAiCustomResponse(null);
+                  }}
+                  className={`py-2 px-1 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 ${
+                    isSelected
+                      ? "bg-vinted-500/25 border-vinted-500 text-white shadow-teal-glow"
+                      : "bg-dark-surface border-dark-border text-slate-300 hover:text-white"
+                  }`}
+                >
+                  <span className="text-base">{lang.flag}</span>
+                  <span className="text-[9px] truncate max-w-full">{lang.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 1.4 Botões de Intenção de Resposta */}
+        <div className="space-y-2">
+          <label className="text-[10px] text-dark-muted uppercase font-bold block">
+            Escolhe a Intenção da Resposta:
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {/* Intenção 1: Aceitar Oferta */}
             <button
               type="button"
-              onClick={() => copyToClipboard(currentOutputText, "dynamic_reply")}
-              className={`w-full py-3.5 px-4 rounded-2xl text-xs font-black flex items-center justify-center gap-2 transition-all shadow-xl active:scale-[0.98] ${
-                copiedKey === "dynamic_reply"
-                  ? "bg-emerald-600 text-white shadow-emerald-950/40"
-                  : "bg-gradient-to-r from-vinted-500 to-vinted-accent text-white shadow-teal-glow hover:brightness-110"
+              onClick={() => {
+                setActionIntent("accept");
+                setAiCustomResponse(null);
+              }}
+              className={`p-2.5 rounded-2xl border text-left transition-all active:scale-95 flex flex-col justify-between ${
+                actionIntent === "accept"
+                  ? "bg-emerald-950/50 border-emerald-500 text-emerald-200 shadow-lg shadow-emerald-950/40 ring-1 ring-emerald-500/50"
+                  : "bg-dark-surface border-dark-border text-slate-300 hover:border-slate-600"
               }`}
             >
-              {copiedKey === "dynamic_reply" ? (
-                <>
-                  <Check className="w-4 h-4 stroke-[3px]" />
-                  <span>Resposta Copiada! Pronto a Colar na Vinted</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4" />
-                  <span>Copiar Resposta com 1 Toque</span>
-                </>
-              )}
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2
+                  className={`w-4 h-4 ${
+                    actionIntent === "accept" ? "text-emerald-400" : "text-emerald-500/70"
+                  }`}
+                />
+                <span className="text-xs font-bold">Aceitar Oferta</span>
+              </div>
+              <span className="text-[9px] text-dark-muted mt-1">
+                Concordar e pedir compra
+              </span>
+            </button>
+
+            {/* Intenção 2: Contraproposta */}
+            <button
+              type="button"
+              onClick={() => {
+                setActionIntent("counter");
+                setAiCustomResponse(null);
+              }}
+              className={`p-2.5 rounded-2xl border text-left transition-all active:scale-95 flex flex-col justify-between ${
+                actionIntent === "counter"
+                  ? "bg-amber-950/50 border-amber-500 text-amber-200 shadow-lg shadow-amber-950/40 ring-1 ring-amber-500/50"
+                  : "bg-dark-surface border-dark-border text-slate-300 hover:border-slate-600"
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <DollarSign
+                  className={`w-4 h-4 ${
+                    actionIntent === "counter" ? "text-amber-400" : "text-amber-500/70"
+                  }`}
+                />
+                <span className="text-xs font-bold">Contraproposta</span>
+              </div>
+              <span className="text-[9px] text-dark-muted mt-1">
+                Propor preço mínimo em €
+              </span>
+            </button>
+
+            {/* Intenção 3: Garantir Estado 10/10 e Envio Hoje */}
+            <button
+              type="button"
+              onClick={() => {
+                setActionIntent("guarantee_10_10");
+                setAiCustomResponse(null);
+              }}
+              className={`p-2.5 rounded-2xl border text-left transition-all active:scale-95 flex flex-col justify-between ${
+                actionIntent === "guarantee_10_10"
+                  ? "bg-cyan-950/50 border-cyan-500 text-cyan-200 shadow-lg shadow-cyan-950/40 ring-1 ring-cyan-500/50"
+                  : "bg-dark-surface border-dark-border text-slate-300 hover:border-slate-600"
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck
+                  className={`w-4 h-4 ${
+                    actionIntent === "guarantee_10_10" ? "text-cyan-400" : "text-cyan-500/70"
+                  }`}
+                />
+                <span className="text-xs font-bold">Garantir 10/10 & Hoje</span>
+              </div>
+              <span className="text-[9px] text-dark-muted mt-1">
+                Impecável + envio rápido
+              </span>
+            </button>
+
+            {/* Intenção 4: Recusar Educadamente */}
+            <button
+              type="button"
+              onClick={() => {
+                setActionIntent("decline_politely");
+                setAiCustomResponse(null);
+              }}
+              className={`p-2.5 rounded-2xl border text-left transition-all active:scale-95 flex flex-col justify-between ${
+                actionIntent === "decline_politely"
+                  ? "bg-rose-950/50 border-rose-500 text-rose-200 shadow-lg shadow-rose-950/40 ring-1 ring-rose-500/50"
+                  : "bg-dark-surface border-dark-border text-slate-300 hover:border-slate-600"
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <XCircle
+                  className={`w-4 h-4 ${
+                    actionIntent === "decline_politely" ? "text-rose-400" : "text-rose-500/70"
+                  }`}
+                />
+                <span className="text-xs font-bold">Recusar Educadamente</span>
+              </div>
+              <span className="text-[9px] text-dark-muted mt-1">
+                Oferta muito baixa
+              </span>
             </button>
           </div>
         </div>
-      )}
 
-      {/* TAB 2: AVISAR ENVIO CACIFO / PONTO DE RECOLHA */}
-      {activeTab === "shipped_locker" && (
-        <div className="space-y-3">
-          <div className="bg-dark-card border border-dark-border rounded-2xl p-3.5 space-y-2.5">
-            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-              Avisar Envio no Cacifo / Ponto de Recolha
-            </h3>
-            <p className="text-[11px] text-dark-muted">
-              Seleciona a transportadora e copia o aviso no idioma do teu comprador:
-            </p>
-
-            <div className="grid grid-cols-2 gap-1.5 pt-1">
-              {[
-                "InPost / Cacifo Locker",
-                "Ponto DPD Pickup",
-                "Mondial Relay",
-                "Posto CTT Expresso",
-              ].map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setCourier(item)}
-                  className={`py-2 px-2.5 rounded-xl border text-[11px] font-semibold transition-all text-left ${
-                    courier === item
-                      ? "bg-vinted-500/20 border-vinted-500 text-vinted-300"
-                      : "bg-dark-surface border-dark-border text-slate-300"
-                  }`}
-                >
-                  {item}
-                </button>
-              ))}
+        {/* Campo de Preço Mínimo para Contraproposta */}
+        {actionIntent === "counter" && (
+          <div className="bg-dark-surface border border-amber-500/40 rounded-2xl p-3 flex items-center justify-between gap-3 animate-in fade-in">
+            <div>
+              <span className="text-xs font-bold text-white block">
+                Valor Mínimo Aceite:
+              </span>
+              <span className="text-[10px] text-dark-muted">
+                Preço que vais contrapropor na app
+              </span>
+            </div>
+            <div className="relative w-28">
+              <input
+                type="number"
+                value={counterPriceInput}
+                onChange={(e) => {
+                  setCounterPriceInput(e.target.value);
+                  setAiCustomResponse(null);
+                }}
+                className="w-full bg-dark-card border border-amber-500/60 rounded-xl px-3 py-2 text-base font-black text-white font-mono focus:outline-none focus:ring-1 focus:ring-amber-400"
+                placeholder="20"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-amber-400">
+                €
+              </span>
             </div>
           </div>
+        )}
 
-          <div className="space-y-2.5">
-            <ResponseCard
-              flag="🇵🇹"
-              langName="Português"
-              text={shippedTexts.pt}
-              onCopy={() => copyToClipboard(shippedTexts.pt, "ship_pt")}
-              isCopied={copiedKey === "ship_pt"}
-            />
-            <ResponseCard
-              flag="🇪🇸"
-              langName="Espanhol (Espanha)"
-              text={shippedTexts.es}
-              onCopy={() => copyToClipboard(shippedTexts.es, "ship_es")}
-              isCopied={copiedKey === "ship_es"}
-            />
-            <ResponseCard
-              flag="🇫🇷"
-              langName="Francês (França/Bélgica)"
-              text={shippedTexts.fr}
-              onCopy={() => copyToClipboard(shippedTexts.fr, "ship_fr")}
-              isCopied={copiedKey === "ship_fr"}
-            />
-            <ResponseCard
-              flag="🇮🇹"
-              langName="Italiano (Itália)"
-              text={shippedTexts.it}
-              onCopy={() => copyToClipboard(shippedTexts.it, "ship_it")}
-              isCopied={copiedKey === "ship_it"}
-            />
+        {/* Botão de personalização avançada com IA (Gemini) se houver texto */}
+        {buyerMessage.trim().length > 0 && (
+          <button
+            type="button"
+            disabled={isAiLoading}
+            onClick={handleGenerateAiResponse}
+            className="w-full py-2.5 px-3 rounded-2xl bg-dark-surface hover:bg-dark-cardHover border border-vinted-500/40 text-vinted-300 hover:text-white text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
+          >
+            {isAiLoading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-vinted-400" />
+                <span>A personalizar com Gemini IA...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3.5 h-3.5 text-vinted-400" />
+                <span>Personalizar com IA para esta mensagem</span>
+              </>
+            )}
+          </button>
+        )}
+
+        {/* 1.5 Caixa de Resposta Gerada Pronta na Língua do Comprador */}
+        <div className="bg-gradient-to-br from-dark-surface to-[#0d1e22] border-2 border-vinted-500/60 rounded-3xl p-4 space-y-3 shadow-teal-glow animate-in fade-in">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-white flex items-center gap-2">
+              <span className="text-lg">
+                {BUYER_LANGUAGES.find((l) => l.id === selectedLang)?.flag}
+              </span>
+              <span>
+                Resposta em{" "}
+                {BUYER_LANGUAGES.find((l) => l.id === selectedLang)?.label}
+              </span>
+            </span>
+            <span className="text-[10px] text-vinted-400 font-mono font-semibold">
+              {activeOutputText.length} carateres
+            </span>
+          </div>
+
+          {/* Texto exato da resposta */}
+          <div
+            data-selectable="true"
+            className="bg-dark-card/90 border border-dark-border rounded-2xl p-3.5 text-xs text-white leading-relaxed select-text font-sans shadow-inner"
+          >
+            {activeOutputText}
+          </div>
+
+          {/* Tradução/Significado em Português */}
+          <div className="bg-dark-surface/60 border border-dark-border/60 rounded-xl px-3 py-2 text-[10px] text-dark-muted">
+            <strong className="text-slate-300 block mb-0.5">
+              Significado em Português 🇵🇹:
+            </strong>
+            {activeTranslationPt}
+          </div>
+
+          {/* Botão de Copiar Resposta com 1 Toque */}
+          <button
+            type="button"
+            onClick={() => copyToClipboard(activeOutputText, "ai_negotiate_response")}
+            className={`w-full py-3.5 px-4 rounded-2xl text-xs font-black flex items-center justify-center gap-2 transition-all shadow-xl active:scale-[0.98] ${
+              copiedKey === "ai_negotiate_response"
+                ? "bg-emerald-600 text-white shadow-emerald-950/40"
+                : "bg-gradient-to-r from-vinted-500 to-vinted-accent text-white shadow-teal-glow hover:brightness-110"
+            }`}
+          >
+            {copiedKey === "ai_negotiate_response" ? (
+              <>
+                <Check className="w-4 h-4 stroke-[3px]" />
+                <span>Resposta Copiada! Pronto a Colar na Vinted</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4" />
+                <span>Copiar Resposta com 1 Toque</span>
+              </>
+            )}
+          </button>
+        </div>
+      </section>
+
+      {/* ============================================================== */}
+      {/* FERRAMENTA 2: TEMPLATES RÁPIDOS DE 1 TOQUE (EM BAIXO)          */}
+      {/* ============================================================== */}
+      <section className="bg-dark-card border border-dark-border rounded-3xl p-4 space-y-4 shadow-xl">
+        {/* Section Header */}
+        <div className="flex items-center justify-between border-b border-dark-border/80 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-xl bg-vinted-500/20 text-vinted-400 flex items-center justify-center border border-vinted-500/40">
+              <Zap className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-black text-white uppercase tracking-wider">
+                2. Templates Rápidos de 1 Toque
+              </h3>
+              <p className="text-[10px] text-dark-muted">
+                Mensagens pós-venda para InPost, CTT e 5 estrelas
+              </p>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* TAB 3: PEDIR AVALIAÇÃO DE 5 ESTRELAS */}
-      {activeTab === "request_review" && (
-        <div className="space-y-3">
-          <div className="bg-dark-card border border-dark-border rounded-2xl p-3.5 space-y-1">
-            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-              <span>Pedir Avaliação de 5 Estrelas (Pós-Entrega)</span>
-            </h3>
-            <p className="text-[11px] text-dark-muted">
-              Mensagens amigáveis para enviar quando o artigo chegar, garantindo que o comprador deixa 5 estrelas no teu perfil.
-            </p>
-          </div>
-
-          <div className="space-y-2.5">
-            <ResponseCard
-              flag="🇵🇹"
-              langName="Português"
-              text={reviewTexts.pt}
-              onCopy={() => copyToClipboard(reviewTexts.pt, "rev_pt")}
-              isCopied={copiedKey === "rev_pt"}
-            />
-            <ResponseCard
-              flag="🇪🇸"
-              langName="Espanhol"
-              text={reviewTexts.es}
-              onCopy={() => copyToClipboard(reviewTexts.es, "rev_es")}
-              isCopied={copiedKey === "rev_es"}
-            />
-            <ResponseCard
-              flag="🇫🇷"
-              langName="Francês"
-              text={reviewTexts.fr}
-              onCopy={() => copyToClipboard(reviewTexts.fr, "rev_fr")}
-              isCopied={copiedKey === "rev_fr"}
-            />
-            <ResponseCard
-              flag="🇮🇹"
-              langName="Italiano"
-              text={reviewTexts.it}
-              onCopy={() => copyToClipboard(reviewTexts.it, "rev_it")}
-              isCopied={copiedKey === "rev_it"}
-            />
+        {/* 2.1 Seletor de Bandeira PT / FR / ES */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] text-dark-muted uppercase font-bold block">
+            Escolhe o Idioma dos Templates:
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { id: "pt" as const, flag: "🇵🇹", label: "Português", sub: "Portugal" },
+              { id: "fr" as const, flag: "🇫🇷", label: "Français", sub: "França / Bélgica" },
+              { id: "es" as const, flag: "🇪🇸", label: "Español", sub: "Espanha" },
+            ].map((item) => {
+              const isSelected = templateLang === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setTemplateLang(item.id)}
+                  className={`py-2 px-2 rounded-2xl border text-center transition-all active:scale-95 flex flex-col items-center justify-center ${
+                    isSelected
+                      ? "bg-vinted-500/25 border-vinted-500 text-white shadow-teal-glow ring-1 ring-vinted-500/50"
+                      : "bg-dark-surface border-dark-border text-slate-300 hover:text-white"
+                  }`}
+                >
+                  <span className="text-lg leading-none mb-1">{item.flag}</span>
+                  <span className="text-xs font-bold">{item.label}</span>
+                  <span className="text-[9px] text-dark-muted">{item.sub}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
-      )}
+
+        {/* 2.2 Os 3 Templates Rápidos */}
+        <div className="space-y-3.5 pt-1">
+          {/* Template 1: Já enviei no ponto de recolha / cacifo */}
+          <QuickTemplateCard
+            icon={<PackageCheck className="w-4 h-4 text-cyan-400" />}
+            tag="Aviso de Envio"
+            title={currentQuick.shipped.title}
+            text={currentQuick.shipped.text}
+            explanationPt={templateLang !== "pt" ? currentQuick.shipped.ptExpl : undefined}
+            onCopy={() => copyToClipboard(currentQuick.shipped.text, "quick_shipped")}
+            isCopied={copiedKey === "quick_shipped"}
+          />
+
+          {/* Template 2: Obrigado pela compra + 24h embalado */}
+          <QuickTemplateCard
+            icon={<HeartHandshake className="w-4 h-4 text-emerald-400" />}
+            tag="Pós-Compra Imediato"
+            title={currentQuick.thankYou.title}
+            text={currentQuick.thankYou.text}
+            explanationPt={templateLang !== "pt" ? currentQuick.thankYou.ptExpl : undefined}
+            onCopy={() => copyToClipboard(currentQuick.thankYou.text, "quick_thank_you")}
+            isCopied={copiedKey === "quick_thank_you"}
+          />
+
+          {/* Template 3: Pedir 5 estrelas pós-chegada */}
+          <QuickTemplateCard
+            icon={<Star className="w-4 h-4 text-amber-400" />}
+            tag="Avaliação 5 Estrelas"
+            title={currentQuick.review.title}
+            text={currentQuick.review.text}
+            explanationPt={templateLang !== "pt" ? currentQuick.review.ptExpl : undefined}
+            onCopy={() => copyToClipboard(currentQuick.review.text, "quick_review")}
+            isCopied={copiedKey === "quick_review"}
+          />
+        </div>
+      </section>
     </div>
   );
 }
 
-interface ResponseCardProps {
-  flag: string;
-  langName: string;
+// ==========================================
+// COMPONENTE DO CARTÃO DE TEMPLATE RÁPIDO
+// ==========================================
+interface QuickTemplateCardProps {
+  icon: React.ReactNode;
+  tag: string;
+  title: string;
   text: string;
+  explanationPt?: string;
   onCopy: () => void;
   isCopied: boolean;
 }
 
-function ResponseCard({ flag, langName, text, onCopy, isCopied }: ResponseCardProps) {
+function QuickTemplateCard({
+  icon,
+  tag,
+  title,
+  text,
+  explanationPt,
+  onCopy,
+  isCopied,
+}: QuickTemplateCardProps) {
   return (
-    <div className="bg-dark-card border border-dark-border rounded-2xl p-3.5 space-y-2 transition-all">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold text-slate-200 flex items-center gap-1.5">
-          <span className="text-sm">{flag}</span>
-          <span>{langName}</span>
-        </span>
+    <div className="bg-dark-surface border border-dark-border hover:border-vinted-500/40 rounded-2xl p-3.5 space-y-2.5 transition-all">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {icon}
+          <span className="text-[11px] font-bold text-white truncate">{tag}</span>
+        </div>
         <span className="text-[10px] text-dark-muted font-mono">{text.length} chars</span>
       </div>
 
       <div
         data-selectable="true"
-        className="bg-dark-surface border border-dark-border/80 rounded-xl p-3 text-xs text-slate-200 leading-relaxed select-text"
+        className="bg-dark-card border border-dark-border/80 rounded-xl p-3 text-xs text-slate-100 leading-relaxed select-text"
       >
         {text}
       </div>
+
+      {explanationPt && (
+        <div className="text-[10px] text-dark-muted px-1 flex items-start gap-1">
+          <Info className="w-3 h-3 text-vinted-400 shrink-0 mt-0.5" />
+          <span>{explanationPt}</span>
+        </div>
+      )}
 
       <button
         type="button"
         onClick={onCopy}
         className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] ${
           isCopied
-            ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/30"
+            ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/40"
             : "bg-vinted-500 hover:bg-vinted-600 text-white shadow-teal-glow"
         }`}
       >
@@ -795,7 +1066,7 @@ function ResponseCard({ flag, langName, text, onCopy, isCopied }: ResponseCardPr
         ) : (
           <>
             <Copy className="w-3.5 h-3.5" />
-            <span>Copiar Resposta (1 Toque)</span>
+            <span>Copiar com 1 Toque</span>
           </>
         )}
       </button>
