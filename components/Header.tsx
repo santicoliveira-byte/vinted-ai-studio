@@ -32,13 +32,10 @@ export function Header({
             <Sparkles className="w-3.5 h-3.5 text-white absolute -top-1 -right-1 drop-shadow" />
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
-              <h1 className="font-bold text-sm tracking-tight text-white">Vinted AI Studio</h1>
-              <span className="bg-vinted-500/20 text-vinted-300 border border-vinted-500/40 text-[9px] font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                PRO
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-dark-muted font-medium">
+            <h1 className="font-bold text-sm tracking-tight text-white leading-tight">
+              Vinted AI Studio
+            </h1>
+            <div className="flex items-center gap-1.5 text-[10px] text-dark-muted font-medium mt-0.5">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="font-semibold text-slate-300">{currentModelName}</span>
               {hasCustomKey && (
