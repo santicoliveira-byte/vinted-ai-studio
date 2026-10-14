@@ -1,17 +1,19 @@
 "use client";
 
-import { Sparkles, SlidersHorizontal, Zap } from "lucide-react";
+import { Sparkles, SlidersHorizontal, X } from "lucide-react";
 
 interface HeaderProps {
   onOpenSettings: () => void;
   hasCustomKey: boolean;
   selectedModel?: string;
+  isSettingsOpen?: boolean;
 }
 
 export function Header({
   onOpenSettings,
   hasCustomKey,
   selectedModel = "gemini-2.5-flash",
+  isSettingsOpen = false,
 }: HeaderProps) {
   const modelLabels: Record<string, string> = {
     "gemini-2.5-flash": "Gemini 2.5 Flash",
@@ -48,11 +50,19 @@ export function Header({
 
         <button
           onClick={onOpenSettings}
-          className="p-2 rounded-xl bg-dark-surface border border-dark-border/80 text-slate-300 hover:text-white hover:border-vinted-500/50 active:scale-95 transition-all flex items-center justify-center"
-          title="Definições e Chave API"
-          aria-label="Abrir Definições"
+          className={`p-2 rounded-xl border active:scale-95 transition-all flex items-center justify-center ${
+            isSettingsOpen
+              ? "bg-vinted-500 border-vinted-400 text-white shadow-teal-glow"
+              : "bg-dark-surface border-dark-border/80 text-slate-300 hover:text-white hover:border-vinted-500/50"
+          }`}
+          title={isSettingsOpen ? "Fechar Definições" : "Definições e Chave API"}
+          aria-label={isSettingsOpen ? "Fechar Definições" : "Abrir Definições"}
         >
-          <SlidersHorizontal className="w-4 h-4" />
+          {isSettingsOpen ? (
+            <X className="w-4 h-4 stroke-[2.5px]" />
+          ) : (
+            <SlidersHorizontal className="w-4 h-4" />
+          )}
         </button>
       </div>
     </header>

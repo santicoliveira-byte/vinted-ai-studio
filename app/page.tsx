@@ -26,6 +26,17 @@ import confetti from "canvas-confetti";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<NavTab>("create");
+  const [previousTab, setPreviousTab] = useState<NavTab>("create");
+
+  const handleToggleSettings = () => {
+    if (activeTab === "settings") {
+      setActiveTab(previousTab);
+    } else {
+      setPreviousTab(activeTab);
+      setActiveTab("settings");
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   // Input states
   const [images, setImages] = useState<ProcessedImage[]>([]);
@@ -280,9 +291,10 @@ export default function Home() {
 
       {/* Top Header */}
       <Header
-        onOpenSettings={() => setActiveTab("settings")}
+        onOpenSettings={handleToggleSettings}
         hasCustomKey={Boolean(apiKey)}
         selectedModel={selectedModel}
+        isSettingsOpen={activeTab === "settings"}
       />
 
       {/* Main Container */}
@@ -439,6 +451,10 @@ export default function Home() {
               onClearHistory={handleClearHistory}
               inventoryItems={inventory}
               onImportInventory={handleUpdateInventory}
+              onClose={() => {
+                setActiveTab(previousTab);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
             />
           </div>
         )}
@@ -448,6 +464,7 @@ export default function Home() {
       <Navigation
         activeTab={activeTab}
         onSelectTab={(tab) => {
+          setPreviousTab(tab);
           setActiveTab(tab);
           window.scrollTo({ top: 0, behavior: "smooth" });
         }}

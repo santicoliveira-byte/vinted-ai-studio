@@ -49,12 +49,6 @@ export function Navigation({
       icon: TrendingUp,
       badge: inventoryCount > 0 ? inventoryCount : null,
     },
-    {
-      id: "settings" as NavTab,
-      label: "Definições",
-      icon: Settings,
-      badge: null,
-    },
   ];
 
   return (

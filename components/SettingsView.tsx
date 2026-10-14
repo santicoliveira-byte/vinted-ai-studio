@@ -18,6 +18,8 @@ import {
   Upload,
   Database,
   Check,
+  Settings,
+  X,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { InventoryItem } from "@/types";
@@ -30,6 +32,7 @@ interface SettingsViewProps {
   onClearHistory: () => void;
   inventoryItems?: InventoryItem[];
   onImportInventory?: (items: InventoryItem[]) => void;
+  onClose?: () => void;
 }
 
 export function SettingsView({
@@ -40,6 +43,7 @@ export function SettingsView({
   onClearHistory,
   inventoryItems = [],
   onImportInventory,
+  onClose,
 }: SettingsViewProps) {
   const [inputKey, setInputKey] = useState(apiKey);
   const [showKey, setShowKey] = useState(false);
@@ -217,6 +221,26 @@ export function SettingsView({
 
   return (
     <div className="space-y-4 pb-12 animate-in fade-in duration-150">
+      {/* Barra de Título e Botão Voltar */}
+      <div className="flex items-center justify-between bg-dark-card border border-dark-border rounded-2xl px-3.5 py-2.5 shadow-sm">
+        <div className="flex items-center gap-2">
+          <Settings className="w-4 h-4 text-vinted-400" />
+          <h2 className="text-xs font-black text-white uppercase tracking-wider">
+            Definições da App
+          </h2>
+        </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[11px] font-bold text-dark-muted hover:text-white flex items-center gap-1.5 bg-dark-surface border border-dark-border px-3 py-1 rounded-xl active:scale-95 transition-all shadow-sm"
+          >
+            <span>Voltar</span>
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
       {/* 1. SECÇÃO DA CHAVE GEMINI API */}
       <div className="bg-dark-card border border-dark-border rounded-3xl p-4 space-y-3.5 shadow-xl">
         <div className="flex items-center justify-between gap-2">
