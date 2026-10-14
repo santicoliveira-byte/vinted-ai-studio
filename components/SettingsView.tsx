@@ -219,26 +219,40 @@ export function SettingsView({
     <div className="space-y-4 pb-12 animate-in fade-in duration-150">
       {/* 1. SECÇÃO DA CHAVE GEMINI API */}
       <div className="bg-dark-card border border-dark-border rounded-3xl p-4 space-y-3.5 shadow-xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-vinted-500/20 border border-vinted-500/40 flex items-center justify-center text-vinted-400">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-vinted-500/20 border border-vinted-500/40 flex items-center justify-center text-vinted-400 shrink-0">
               <Key className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="text-xs font-black text-white uppercase tracking-wider">
+            <div className="min-w-0">
+              <h3 className="text-xs font-black text-white uppercase tracking-wider truncate">
                 Chave da Gemini API
               </h3>
-              <p className="text-[10px] text-dark-muted">
-                Guardada em segurança no localStorage do teu iPhone
+              <p className="text-[10px] text-dark-muted truncate">
+                Guardada em segurança no localStorage
               </p>
             </div>
           </div>
-          {apiKey && (
-            <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3" />
-              Ativa
-            </span>
-          )}
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <a
+              href="https://aistudio.google.com/app/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="py-1 px-2.5 rounded-xl bg-gradient-to-r from-vinted-500/20 to-vinted-accent/20 hover:from-vinted-500/30 hover:to-vinted-accent/30 border border-vinted-500/50 text-vinted-300 hover:text-white text-[10px] font-bold flex items-center gap-1 transition-all active:scale-95 shadow-teal-glow/20"
+              title="Obter chave gratuita no Google AI Studio"
+            >
+              <span>Pegar API Google</span>
+              <ExternalLink className="w-3 h-3 text-vinted-400" />
+            </a>
+
+            {apiKey && (
+              <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3" />
+                Ativa
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Input da Chave */}
