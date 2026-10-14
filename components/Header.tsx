@@ -27,9 +27,13 @@ export function Header({
     <header className="sticky top-0 z-40 bg-dark-bg/85 backdrop-blur-md border-b border-dark-border/60 px-4 pb-3 pt-ios-top transition-colors">
       <div className="max-w-md mx-auto flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="relative w-9 h-9 rounded-xl bg-gradient-to-br from-vinted-400 via-vinted-500 to-vinted-700 flex items-center justify-center shadow-teal-glow">
-            <span className="font-black text-white text-base tracking-tighter">V</span>
-            <Sparkles className="w-3.5 h-3.5 text-white absolute -top-1 -right-1 drop-shadow" />
+          <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-teal-glow shrink-0 border border-vinted-500/40">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/apple-touch-icon.png"
+              alt="Vinted AI Studio"
+              className="w-full h-full object-cover"
+            />
           </div>
           <div>
             <h1 className="font-bold text-sm tracking-tight text-white leading-tight">

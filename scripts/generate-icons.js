@@ -2,48 +2,82 @@ const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
 
-const svgIcon = `
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" rx="115" fill="#090D0F"/>
-  <rect x="8" y="8" width="496" height="496" rx="107" stroke="url(#border_grad)" stroke-width="6" opacity="0.6"/>
-  
-  <!-- Subtle dark teal background glow -->
-  <circle cx="256" cy="256" r="180" fill="url(#glow_grad)" opacity="0.25"/>
-  
+const svgIcon = `<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="border_grad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#00A8B5"/>
-      <stop offset="0.5" stop-color="#007782"/>
-      <stop offset="1" stop-color="#0F2B30"/>
-    </linearGradient>
-    <radialGradient id="glow_grad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 256) rotate(90) scale(180)">
-      <stop stop-color="#00A8B5"/>
-      <stop offset="1" stop-color="#007782" stop-opacity="0"/>
+    <!-- Background Gradient -->
+    <radialGradient id="bg_glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00A8B5" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#090D0F" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="brand_grad" x1="120" y1="120" x2="390" y2="390" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#33C6D0"/>
-      <stop offset="0.6" stop-color="#007782"/>
-      <stop offset="1" stop-color="#00535B"/>
+
+    <!-- Tag Gradient -->
+    <linearGradient id="tag_grad" x1="120" y1="120" x2="380" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38E1ED"/>
+      <stop offset="45%" stop-color="#00A8B5"/>
+      <stop offset="100%" stop-color="#005B63"/>
     </linearGradient>
+
+    <!-- Border Gradient -->
+    <linearGradient id="border_grad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00A8B5" stop-opacity="0.8"/>
+      <stop offset="50%" stop-color="#007782" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#090D0F"/>
+    </linearGradient>
+
+    <!-- Sparkle Gradient -->
     <linearGradient id="sparkle_grad" x1="0" y1="0" x2="1" y2="1">
-      <stop stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#66D4DC"/>
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="50%" stop-color="#A5F3FC"/>
+      <stop offset="100%" stop-color="#00A8B5"/>
     </linearGradient>
+
+    <filter id="glow_filter" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
   </defs>
 
-  <!-- Stylish stylized "V" with Camera lens / Sparkle center -->
-  <g filter="drop-shadow(0px 8px 24px rgba(0, 119, 130, 0.45))">
-    <!-- Stylized V for Vinted -->
-    <path d="M140 148 L224 372 C236 404 276 404 288 372 L372 148 C378 132 366 116 348 116 C336 116 326 124 322 136 L256 312 L190 136 C186 124 176 116 164 116 C146 116 134 132 140 148 Z" fill="url(#brand_grad)"/>
+  <!-- iOS App Icon Squircle Background -->
+  <rect width="512" height="512" rx="115" fill="#090D0F"/>
+  <rect x="6" y="6" width="500" height="500" rx="109" stroke="url(#border_grad)" stroke-width="5" opacity="0.6"/>
+  <circle cx="256" cy="256" r="210" fill="url(#bg_glow)"/>
+
+  <!-- Fashion Price Tag Symbol -->
+  <g transform="translate(256,256) rotate(-15) translate(-256,-256)" filter="url(#glow_filter)">
+    <!-- Tag Body -->
+    <path d="M190 140 L310 140 C322 140 334 146 342 154 L380 192 C388 200 392 210 392 222 L392 360 C392 382 374 400 352 400 L180 400 C158 400 140 382 140 360 L140 190 C140 162 162 140 190 140 Z" fill="url(#tag_grad)"/>
     
-    <!-- AI Studio Star 1 -->
-    <path d="M370 170 C370 185 385 195 400 195 C385 195 370 205 370 220 C370 205 355 195 340 195 C355 195 370 185 370 170 Z" fill="url(#sparkle_grad)"/>
-    
-    <!-- AI Studio Star 2 (small) -->
-    <path d="M150 240 C150 250 160 258 170 258 C160 258 150 266 150 276 C150 266 140 258 130 258 C140 258 150 250 150 240 Z" fill="url(#sparkle_grad)" opacity="0.85"/>
+    <!-- Tag Eyelet / Hole -->
+    <circle cx="210" cy="195" r="20" fill="#090D0F" opacity="0.85"/>
+    <circle cx="210" cy="195" r="22" stroke="#FFFFFF" stroke-width="3" opacity="0.4"/>
+
+    <!-- Thread / Cord Loop -->
+    <path d="M210 175 C210 120 180 90 140 80" stroke="#A5F3FC" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.7"/>
+
+    <!-- Stylized 'V' Cutout on Tag -->
+    <path d="M230 260 L266 340 L302 260" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+    <!-- Barcode details on tag bottom -->
+    <rect x="200" y="360" width="8" height="20" rx="3" fill="#090D0F" opacity="0.3"/>
+    <rect x="216" y="360" width="4" height="20" rx="2" fill="#090D0F" opacity="0.3"/>
+    <rect x="228" y="360" width="12" height="20" rx="3" fill="#090D0F" opacity="0.3"/>
+    <rect x="248" y="360" width="6" height="20" rx="2" fill="#090D0F" opacity="0.3"/>
+    <rect x="262" y="360" width="10" height="20" rx="3" fill="#090D0F" opacity="0.3"/>
+    <rect x="280" y="360" width="16" height="20" rx="3" fill="#090D0F" opacity="0.3"/>
+    <rect x="304" y="360" width="6" height="20" rx="2" fill="#090D0F" opacity="0.3"/>
   </g>
-</svg>
-`;
+
+  <!-- Big Magic AI Star (Top Right) -->
+  <g transform="translate(370, 130)">
+    <path d="M0 -50 C0 -15 15 0 50 0 C15 0 0 15 0 50 C0 15 -15 0 -50 0 C-15 0 0 -15 0 -50 Z" fill="url(#sparkle_grad)"/>
+    <circle cx="0" cy="0" r="12" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Small Ambient Sparkle (Bottom Left) -->
+  <g transform="translate(130, 360) scale(0.45)">
+    <path d="M0 -50 C0 -15 15 0 50 0 C15 0 0 15 0 50 C0 15 -15 0 -50 0 C-15 0 0 -15 0 -50 Z" fill="url(#sparkle_grad)" opacity="0.9"/>
+  </g>
+</svg>`;
 
 async function generate() {
   const publicDir = path.join(__dirname, '../public');
@@ -75,7 +109,7 @@ async function generate() {
 
   fs.writeFileSync(path.join(publicDir, 'icon.svg'), svgIcon);
 
-  console.log('Icons generated successfully in /public');
+  console.log('New Fashion Tag + AI Sparkle icons generated successfully in /public');
 }
 
 generate().catch(console.error);
