@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vinted-ai-studio-v8';
+const CACHE_NAME = 'vinted-ai-studio-v9';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/icon-192.png',

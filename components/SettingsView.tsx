@@ -81,28 +81,65 @@ export function SettingsView({
     setTestResult(null);
 
     try {
-      const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${keyToTest}`;
-      const res = await fetch(testUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: "Responde apenas OK" }] }],
-        }),
-      });
+      const modelsToTest = [
+        selectedModel,
+        "gemini-3.1-flash",
+        "gemini-3.8-flash",
+        "gemini-3.1-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-3.1-pro",
+      ].filter(
+        (v, i, a) =>
+          a.indexOf(v) === i &&
+          !v.startsWith("gemini-1") &&
+          !v.startsWith("gemini-2")
+      );
 
-      if (res.ok) {
+      let success = false;
+      let workingModel = selectedModel;
+      let lastErrorMessage = "";
+
+      for (const model of modelsToTest) {
+        try {
+          const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keyToTest}`;
+          const res = await fetch(testUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: "Responde apenas OK" }] }],
+            }),
+          });
+
+          if (res.ok) {
+            success = true;
+            workingModel = model;
+            break;
+          } else {
+            const errorData = await res.json().catch(() => ({}));
+            lastErrorMessage =
+              errorData?.error?.message ||
+              `Erro ${res.status}: não foi possível ligar ao modelo ${model}`;
+          }
+        } catch (err: any) {
+          lastErrorMessage = err?.message || "Falha de ligação ao testar.";
+        }
+      }
+
+      if (success) {
         setTestResult({
           success: true,
-          message: "Ligação ao Gemini bem-sucedida! Chave ativa e válida.",
+          message: `Ligação ao Gemini 3.1+ (${workingModel}) bem-sucedida! Chave ativa e válida.`,
         });
         onSaveApiKey(keyToTest);
+        if (workingModel !== selectedModel) {
+          onSelectModel(workingModel);
+        }
       } else {
-        const errorData = await res.json().catch(() => ({}));
         setTestResult({
           success: false,
           message:
-            errorData?.error?.message ||
-            "Erro ao validar a chave. Verifica se a chave foi copiada corretamente.",
+            lastErrorMessage ||
+            "Erro ao validar a chave. Verifica se a chave foi copiada corretamente e suporta modelos 3.1+.",
         });
       }
     } catch (err: any) {
@@ -361,18 +398,21 @@ export function SettingsView({
         </div>
       </div>
 
-      {/* 2. SELETOR DE MODELO GEMINI */}
+      {/* 2. SELETOR DE MODELO GEMINI 3.1+ */}
       <div className="bg-dark-card border border-dark-border rounded-3xl p-4 space-y-3 shadow-xl">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-vinted-500/20 border border-vinted-500/40 flex items-center justify-center text-vinted-400">
             <Cpu className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-xs font-black text-white uppercase tracking-wider">
-              Modelo Gemini
+            <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+              <span>Modelos Gemini 3.1+</span>
+              <span className="text-[9px] bg-vinted-500/20 text-vinted-300 border border-vinted-500/40 px-1.5 py-0.2 rounded-full font-bold">
+                3.1 ou Superior
+              </span>
             </h3>
             <p className="text-[10px] text-dark-muted">
-              Motor multimodal de análise de imagem e criação de anúncios
+              Compatibilidade total com as chaves API Gemini 3.1 para cima
             </p>
           </div>
         </div>
@@ -380,22 +420,22 @@ export function SettingsView({
         <div className="grid grid-cols-1 gap-2">
           {[
             {
-              id: "gemini-2.5-flash",
-              name: "Gemini 2.5 Flash",
-              badge: "⭐ Recomendado",
-              desc: "Ultra-rápido c/ visão • Melhor equilíbrio para o dia a dia",
+              id: "gemini-3.1-flash",
+              name: "Gemini 3.1 Flash",
+              badge: "⭐ Recomendado (3.1+)",
+              desc: "Ultra-rápido com visão 3.1 • Equilíbrio perfeito e respostas imediatas",
             },
             {
               id: "gemini-3.8-flash",
               name: "Gemini 3.8 Flash",
-              badge: "⚡ Nova Geração",
-              desc: "Velocidade máxima e precisão otimizada para vendas",
+              badge: "⚡ Máxima Velocidade",
+              desc: "Geração 3.8 • Otimizado para alto volume de criação e negociação",
             },
             {
-              id: "gemini-2.5-pro",
-              name: "Gemini 2.5 Pro",
-              badge: "🧠 Raciocínio Pro",
-              desc: "Análise ultra-detalhada para artigos raros, vintage e tech",
+              id: "gemini-3.1-pro-preview",
+              name: "Gemini 3.1 Pro",
+              badge: "🧠 Raciocínio 3.1 Pro",
+              desc: "Análise profunda para streetwear raro, eletrónica e colecionáveis",
             },
           ].map((m) => {
             const isSelected = selectedModel === m.id;

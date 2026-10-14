@@ -54,7 +54,7 @@ const BUYER_LANGUAGES: LangOption[] = [
 
 export function ChatNegotiatorView({
   apiKey,
-  selectedModel = "gemini-2.5-flash",
+  selectedModel = "gemini-3.1-flash",
 }: ChatNegotiatorViewProps) {
   // ==========================================
   // FERRAMENTA 1: TRADUTOR & GERADOR IA (TOPO)

@@ -36,7 +36,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const preferredModel = customModel?.trim() || "gemini-2.5-flash";
+    let preferredModel = customModel?.trim() || "gemini-3.1-flash";
+    if (
+      preferredModel.startsWith("gemini-1") ||
+      preferredModel.startsWith("gemini-2")
+    ) {
+      preferredModel = "gemini-3.1-flash";
+    }
 
     const intentDescriptions: Record<string, string> = {
       accept: "Aceitar a oferta do comprador com simpatia, pedir para avançar na app e confirmar envio super bem embalado em 24h.",
@@ -78,28 +84,57 @@ Deves responder OBRIGATORIAMENTE em JSON válido com esta estrutura exata:
 
 Apenas JSON válido, sem wrappers de markdown adicionais.`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${preferredModel}:generateContent?key=${apiKey}`;
+    const modelsToTry = [
+      preferredModel,
+      "gemini-3.1-flash",
+      "gemini-3.8-flash",
+      "gemini-3.1-pro-preview",
+      "gemini-3-flash-preview",
+      "gemini-3.1-pro",
+    ].filter(
+      (v, i, a) =>
+        a.indexOf(v) === i &&
+        !v.startsWith("gemini-1") &&
+        !v.startsWith("gemini-2")
+    );
 
-    const geminiResponse = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 1000,
-          responseMimeType: "application/json",
-        },
-      }),
-    });
+    let geminiResponse: Response | null = null;
+    let lastErrorText = "";
 
-    if (!geminiResponse.ok) {
-      const errText = await geminiResponse.text();
+    for (const model of modelsToTry) {
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const res = await fetch(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 1000,
+              responseMimeType: "application/json",
+            },
+          }),
+        });
+
+        if (res.ok) {
+          geminiResponse = res;
+          break;
+        } else {
+          lastErrorText = await res.text().catch(() => "");
+          console.warn(`Negotiate model ${model} failed, trying fallback...`, lastErrorText);
+        }
+      } catch (err: any) {
+        lastErrorText = err?.message || String(err);
+      }
+    }
+
+    if (!geminiResponse || !geminiResponse.ok) {
       return NextResponse.json(
         {
-          error: `Erro ao comunicar com a Gemini API (${geminiResponse.status}): ${errText}`,
+          error: `Erro ao comunicar com a Gemini API 3.1+: ${lastErrorText || "Nenhum modelo respondeu com sucesso."}`,
         },
-        { status: geminiResponse.status }
+        { status: 502 }
       );
     }
 

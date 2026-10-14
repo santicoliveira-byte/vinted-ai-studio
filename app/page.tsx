@@ -64,7 +64,7 @@ export default function Home() {
 
   // API & Settings state
   const [apiKey, setApiKey] = useState<string>("");
-  const [selectedModel, setSelectedModel] = useState<string>("gemini-2.5-flash");
+  const [selectedModel, setSelectedModel] = useState<string>("gemini-3.1-flash");
 
   // Output & Loading states
   const [isGenerating, setIsGenerating] = useState(false);
@@ -80,9 +80,13 @@ export default function Home() {
       if (storedKey) setApiKey(storedKey);
 
       const storedModel = localStorage.getItem("vinted_gemini_model");
-      if (storedModel === "gemini-1.5-flash" || !storedModel) {
-        setSelectedModel("gemini-2.5-flash");
-        localStorage.setItem("vinted_gemini_model", "gemini-2.5-flash");
+      if (
+        !storedModel ||
+        storedModel.startsWith("gemini-1") ||
+        storedModel.startsWith("gemini-2")
+      ) {
+        setSelectedModel("gemini-3.1-flash");
+        localStorage.setItem("vinted_gemini_model", "gemini-3.1-flash");
       } else {
         setSelectedModel(storedModel);
       }

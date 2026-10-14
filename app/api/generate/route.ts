@@ -91,7 +91,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const preferredModel = customModel?.trim() || "gemini-2.5-flash";
+    let preferredModel = customModel?.trim() || "gemini-3.1-flash";
+    if (
+      preferredModel.startsWith("gemini-1") ||
+      preferredModel.startsWith("gemini-2")
+    ) {
+      preferredModel = "gemini-3.1-flash";
+    }
 
     // Prepare parts for Gemini API
     const contentsParts: Array<Record<string, unknown>> = [];
@@ -187,13 +193,20 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    // Candidate models to try in sequence
+    // Candidate models to try in sequence (Gemini 3.1 para cima)
     const modelsToTry = [
       preferredModel,
-      "gemini-2.5-flash",
+      "gemini-3.1-flash",
       "gemini-3.8-flash",
-      "gemini-2.5-pro",
-    ].filter((v, i, a) => a.indexOf(v) === i); // unique
+      "gemini-3.1-pro-preview",
+      "gemini-3-flash-preview",
+      "gemini-3.1-pro",
+    ].filter(
+      (v, i, a) =>
+        a.indexOf(v) === i &&
+        !v.startsWith("gemini-1") &&
+        !v.startsWith("gemini-2")
+    );
 
     let responseData: any = null;
     let lastError: any = null;

@@ -12,16 +12,18 @@ interface HeaderProps {
 export function Header({
   onOpenSettings,
   hasCustomKey,
-  selectedModel = "gemini-2.5-flash",
+  selectedModel = "gemini-3.1-flash",
   isSettingsOpen = false,
 }: HeaderProps) {
   const modelLabels: Record<string, string> = {
-    "gemini-2.5-flash": "Gemini 2.5 Flash",
+    "gemini-3.1-flash": "Gemini 3.1 Flash",
     "gemini-3.8-flash": "Gemini 3.8 Flash",
-    "gemini-2.5-pro": "Gemini 2.5 Pro",
+    "gemini-3.1-pro-preview": "Gemini 3.1 Pro",
+    "gemini-3.1-pro": "Gemini 3.1 Pro",
+    "gemini-3-flash-preview": "Gemini 3 Flash",
   };
 
-  const currentModelName = modelLabels[selectedModel] || "Gemini 2.5 Flash";
+  const currentModelName = modelLabels[selectedModel] || "Gemini 3.1 Flash";
 
   return (
     <header className="sticky top-0 z-40 bg-dark-bg/85 backdrop-blur-md border-b border-dark-border/60 px-4 pb-3 pt-ios-top transition-colors">
