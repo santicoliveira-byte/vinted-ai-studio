@@ -5,9 +5,22 @@ import { Sparkles, SlidersHorizontal, Zap } from "lucide-react";
 interface HeaderProps {
   onOpenSettings: () => void;
   hasCustomKey: boolean;
+  selectedModel?: string;
 }
 
-export function Header({ onOpenSettings, hasCustomKey }: HeaderProps) {
+export function Header({
+  onOpenSettings,
+  hasCustomKey,
+  selectedModel = "gemini-2.5-flash",
+}: HeaderProps) {
+  const modelLabels: Record<string, string> = {
+    "gemini-2.5-flash": "Gemini 2.5 Flash",
+    "gemini-3.8-flash": "Gemini 3.8 Flash",
+    "gemini-2.5-pro": "Gemini 2.5 Pro",
+  };
+
+  const currentModelName = modelLabels[selectedModel] || "Gemini 2.5 Flash";
+
   return (
     <header className="sticky top-0 z-40 bg-dark-bg/85 backdrop-blur-md border-b border-dark-border/60 px-4 pb-3 pt-ios-top transition-colors">
       <div className="max-w-md mx-auto flex items-center justify-between">
@@ -25,7 +38,7 @@ export function Header({ onOpenSettings, hasCustomKey }: HeaderProps) {
             </div>
             <div className="flex items-center gap-1.5 text-[10px] text-dark-muted font-medium">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Gemini 2.5 Flash Vision</span>
+              <span className="font-semibold text-slate-300">{currentModelName}</span>
               {hasCustomKey && (
                 <span className="text-vinted-400 font-semibold">• Chave Ativa</span>
               )}

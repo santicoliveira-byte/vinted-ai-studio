@@ -69,7 +69,12 @@ export default function Home() {
       if (storedKey) setApiKey(storedKey);
 
       const storedModel = localStorage.getItem("vinted_gemini_model");
-      if (storedModel) setSelectedModel(storedModel);
+      if (storedModel === "gemini-1.5-flash" || !storedModel) {
+        setSelectedModel("gemini-2.5-flash");
+        localStorage.setItem("vinted_gemini_model", "gemini-2.5-flash");
+      } else {
+        setSelectedModel(storedModel);
+      }
 
       // Load inventory items
       const storedInv = localStorage.getItem("vinted_inventory_items");
@@ -277,6 +282,7 @@ export default function Home() {
       <Header
         onOpenSettings={() => setActiveTab("settings")}
         hasCustomKey={Boolean(apiKey)}
+        selectedModel={selectedModel}
       />
 
       {/* Main Container */}

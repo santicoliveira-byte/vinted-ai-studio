@@ -15,7 +15,7 @@ Uma Web App progressiva (PWA) de alto rendimento, desenhada especificamente para
 - Seletor rápido de categoria (Streetwear, Jogos, Hardware, Calçado, etc.) e tags de notas rápidas em 1 toque.
 
 ### 2. Análise Multimodal com Gemini Vision
-- Modelos suportados: `gemini-2.5-flash` (padrão) e `gemini-1.5-flash`.
+- Modelos suportados: `gemini-2.5-flash` (padrão), `gemini-3.8-flash` e `gemini-2.5-pro`.
 - Suporte para configurar a chave `GEMINI_API_KEY`:
   - Nas variáveis de ambiente da Vercel; ou
   - Diretamente na aba "Definições" da app (guardada no `localStorage` do iPhone).
