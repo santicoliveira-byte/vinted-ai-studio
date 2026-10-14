@@ -431,6 +431,8 @@ export default function Home() {
               selectedModel={selectedModel}
               onSelectModel={handleSelectModel}
               onClearHistory={handleClearHistory}
+              inventoryItems={inventory}
+              onImportInventory={handleUpdateInventory}
             />
           </div>
         )}

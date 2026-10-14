@@ -62,16 +62,20 @@ export interface SavedListingItem {
   thumbnail?: string;
 }
 
+export type InventoryStatus = "active" | "shipping" | "sold";
+
 export interface InventoryItem {
   id: string;
   createdAt: string;
   titulo: string;
   category: string;
-  status: "active" | "sold";
+  status: InventoryStatus; // 'active' = À Venda, 'shipping' = Aguardar Envio / Em Trânsito, 'sold' = Concluídos
   precoListado: number;
   precoVenda?: number;
   precoCusto?: number;
   soldAt?: string;
+  completedAt?: string;
+  courier?: string; // ex: InPost / Cacifo, CTT, DPD, Mondial Relay
   thumbnail?: string;
   notes?: string;
   result?: GeminiListingResult;
